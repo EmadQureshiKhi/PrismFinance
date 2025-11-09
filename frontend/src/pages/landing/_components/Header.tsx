@@ -58,7 +58,7 @@ const Header = () => {
               margin-inline-start: var(--size-300);
             `}
           >
-            <Button onPress={() => {}}>Launch App</Button>
+            <Button onPress={() => window.location.href = '/app'}>Launch App</Button>
           </div>
         </div>
       </div>

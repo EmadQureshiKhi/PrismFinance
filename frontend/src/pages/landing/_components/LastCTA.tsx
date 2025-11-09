@@ -37,7 +37,7 @@ const LastCTA = ({ ref }: { ref?: RefObject<HTMLElement> }) => {
             <Button
               size="large"
               color="primary-light"
-              onPress={() => {}}
+              onPress={() => window.location.href = '/app'}
             >
               Launch App
             </Button>
