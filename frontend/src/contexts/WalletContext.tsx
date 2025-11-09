@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
 import { MetaMaskService } from '@/services/wallet/MetaMaskService';
 import { HashPackService } from '@/services/wallet/HashPackService';
 import { HederaTokenService } from '@/services/wallet/HederaTokenService';
@@ -21,10 +21,16 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [installedWallets, setInstalledWallets] = useState<WalletInfo[]>([]);
+  const [, setTokenService] = useState<HederaTokenService | null>(null);
 
-  const metamaskService = new MetaMaskService();
-  const hashpackService = new HashPackService();
-  const [tokenService, setTokenService] = useState<HederaTokenService | null>(null);
+  // Initialize services safely in browser only
+  const metamaskService = useMemo(() => new MetaMaskService(), []);
+  const hashpackService = useMemo(() => {
+    if (typeof window !== 'undefined') {
+      return new HashPackService();
+    }
+    return null;
+  }, []);
 
   // Detect installed wallets on mount
   useEffect(() => {
@@ -42,7 +48,7 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       }
 
       // HashPack is always shown as it can be installed
-      if (hashpackService.isInstalled()) {
+      if (hashpackService && hashpackService.isInstalled()) {
         detected.push({
           id: 'hashpack',
           name: 'HashPack',
@@ -61,7 +67,7 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     const timer = setTimeout(detectWallets, 1000);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [metamaskService, hashpackService]);
 
   const connect = async (walletId: 'metamask' | 'hashpack') => {
     setIsConnecting(true);
@@ -69,8 +75,12 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
     try {
       const service = walletId === 'metamask' ? metamaskService : hashpackService;
+
+      if (!service) {
+        throw new Error('HashPack is not available in this environment.');
+      }
       const walletConnection = await service.connect();
-      
+
       // Initialize token service for the network
       const hederaTokenService = new HederaTokenService(walletConnection.network);
       setTokenService(hederaTokenService);
@@ -82,7 +92,7 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       // Fetch token prices
       const symbols = tokens.map(t => t.symbol);
       const prices = await hederaTokenService.fetchTokenPrices(symbols);
-      
+
       // Update token prices
       tokens.forEach(token => {
         if (prices[token.symbol]) {
@@ -115,6 +125,10 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       const service =
         connection.wallet.id === 'metamask' ? metamaskService : hashpackService;
 
+      if (!service) {
+        throw new Error('Wallet service not available');
+      }
+
       await service.disconnect();
       setConnection(null);
 
@@ -141,16 +155,18 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       | 'hashpack'
       | null;
 
-    if (savedWallet && !connection) {
+    if (savedWallet && !connection && !isConnecting) {
+      console.log('🔄 Auto-reconnecting to:', savedWallet);
       // Attempt to reconnect silently
       connect(savedWallet).catch((err) => {
-        console.log('Auto-reconnect failed:', err);
+        console.log('❌ Auto-reconnect failed:', err);
         // Clear saved wallet if auto-reconnect fails
         localStorage.removeItem('prism_wallet');
         localStorage.removeItem('prism_account');
       });
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   return (
     <WalletContext.Provider
