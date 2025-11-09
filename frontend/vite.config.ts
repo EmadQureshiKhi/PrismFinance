@@ -22,4 +22,22 @@ export default defineConfig({
   css: {
     postcss: './postcss.config.js',
   },
+  optimizeDeps: {
+    include: [
+      '@hashgraph/sdk',
+      '@hashgraph/proto',
+      '@reown/appkit',
+      '@reown/appkit-adapter-ethers',
+      'ethers'
+    ],
+    esbuildOptions: {
+      target: 'esnext'
+    }
+  },
+  build: {
+    target: 'esnext',
+    commonjsOptions: {
+      transformMixedEsModules: true
+    }
+  }
 })
