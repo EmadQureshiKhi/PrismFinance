@@ -1,7 +1,21 @@
 import { css } from "@emotion/react";
-import { useState } from "react";
-import { ArrowsDownUp, GearSix, Info } from "@phosphor-icons/react";
+import { useState, useEffect } from "react";
+import { ArrowsDownUp, GearSix, Info, CaretDown } from "@phosphor-icons/react";
+import { useDexAggregator } from "@/hooks/useDexAggregator";
+import RouteSelector from "./swap/RouteSelector";
+import TokenSelector from "./swap/TokenSelector";
+import { SwapRoute, HederaToken } from "@/services/dex/types";
 
+// Hedera native tokens for Market swap
+const tokens = [
+  { symbol: "HBAR", name: "Hedera", logo: "ℏ" },
+  { symbol: "USDC", name: "USD Coin", logo: "💵" },
+  { symbol: "USDT", name: "Tether", logo: "₮" },
+  { symbol: "SAUCE", name: "SaucerSwap", logo: "🍯" },
+  { symbol: "PACK", name: "HashPack", logo: "📦" },
+];
+
+// Prism stablecoins for Currency swap
 const currencies = [
   { symbol: "pUSD", name: "Prism USD", apy: "12.5%" },
   { symbol: "pEUR", name: "Prism EUR", apy: "11.8%" },
@@ -12,17 +26,86 @@ const currencies = [
 ];
 
 const SwapInterface = () => {
+  const [swapMode, setSwapMode] = useState<"market" | "currency">("market");
+  
+  // DEX Aggregator hook
+  const { tokens: hederaTokens, routes, getQuotes, isLoadingRoutes } = useDexAggregator();
+  const [selectedRoute, setSelectedRoute] = useState<SwapRoute | null>(null);
+  const [showRoutes, setShowRoutes] = useState(false);
+  const [autoRoute, setAutoRoute] = useState(true);
+  
+  // Token selector state
+  const [showFromTokenSelector, setShowFromTokenSelector] = useState(false);
+  const [showToTokenSelector, setShowToTokenSelector] = useState(false);
+  
+  // Market mode state (token swap with DEX aggregator)
+  const [fromToken, setFromToken] = useState<HederaToken | null>(null);
+  const [toToken, setToToken] = useState<HederaToken | null>(null);
+  const [fromTokenAmount, setFromTokenAmount] = useState("");
+  const [toTokenAmount, setToTokenAmount] = useState("");
+  
+  // Set default tokens when loaded
+  useEffect(() => {
+    if (hederaTokens.length > 0 && !fromToken) {
+      setFromToken(hederaTokens.find(t => t.symbol === 'HBAR') || hederaTokens[0]);
+      setToToken(hederaTokens.find(t => t.symbol === 'USDC') || hederaTokens[1]);
+    }
+  }, [hederaTokens, fromToken]);
+  
+  // Currency mode state (stablecoin swap)
   const [fromCurrency, setFromCurrency] = useState(currencies[0]);
   const [toCurrency, setToCurrency] = useState(currencies[1]);
   const [fromAmount, setFromAmount] = useState("");
   const [toAmount, setToAmount] = useState("");
-  const [swapMode, setSwapMode] = useState<"market" | "currency">("market");
+
+  // Fetch quotes when amount changes in Market mode
+  useEffect(() => {
+    if (swapMode === "market" && fromToken && toToken && fromTokenAmount && parseFloat(fromTokenAmount) > 0) {
+      const timer = setTimeout(() => {
+        getQuotes(fromToken.tokenId, toToken.tokenId, fromTokenAmount, autoRoute);
+      }, 500); // Debounce for 500ms
+
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [swapMode, fromToken, toToken, fromTokenAmount, autoRoute]);
+
+  // Auto-select best route
+  useEffect(() => {
+    if (routes.length > 0 && autoRoute) {
+      setSelectedRoute(routes[0]); // Best route
+      setToTokenAmount(routes[0].quote.outputAmount);
+    }
+  }, [routes, autoRoute]);
 
   const handleSwapDirection = () => {
-    setFromCurrency(toCurrency);
-    setToCurrency(fromCurrency);
-    setFromAmount(toAmount);
-    setToAmount(fromAmount);
+    if (swapMode === "market") {
+      const tempToken = fromToken;
+      setFromToken(toToken);
+      setToToken(tempToken);
+      setFromTokenAmount(toTokenAmount);
+      setToTokenAmount(fromTokenAmount);
+    } else {
+      setFromCurrency(toCurrency);
+      setToCurrency(fromCurrency);
+      setFromAmount(toAmount);
+      setToAmount(fromAmount);
+    }
+  };
+
+  // Get current from/to based on mode
+  const currentFrom = swapMode === "market" ? fromToken : fromCurrency;
+  const currentTo = swapMode === "market" ? toToken : toCurrency;
+  const currentFromAmount = swapMode === "market" ? fromTokenAmount : fromAmount;
+  const currentToAmount = swapMode === "market" ? toTokenAmount : toAmount;
+  
+  const setCurrentFromAmount = swapMode === "market" ? setFromTokenAmount : setFromAmount;
+  const setCurrentToAmount = swapMode === "market" ? setToTokenAmount : setToAmount;
+  
+  // Get symbol safely
+  const getSymbol = (item: any) => {
+    if (!item) return '...';
+    return item.symbol || '...';
   };
 
   return (
@@ -153,8 +236,8 @@ const SwapInterface = () => {
           >
             <input
               type="number"
-              value={fromAmount}
-              onChange={(e) => setFromAmount(e.target.value)}
+              value={currentFromAmount}
+              onChange={(e) => setCurrentFromAmount(e.target.value)}
               placeholder="0.00"
               css={css`
                 flex: 1;
@@ -172,6 +255,7 @@ const SwapInterface = () => {
             />
 
             <button
+              onClick={() => swapMode === "market" && setShowFromTokenSelector(true)}
               css={css`
                 display: flex;
                 align-items: center;
@@ -190,28 +274,31 @@ const SwapInterface = () => {
                 }
               `}
             >
-              <span>{fromCurrency.symbol}</span>
+              <span>{getSymbol(currentFrom)}</span>
+              <CaretDown size={16} />
             </button>
           </div>
 
-          <div
-            css={css`
-              display: flex;
-              align-items: center;
-              gap: 0.5rem;
-              margin-top: 0.75rem;
-            `}
-          >
-            <Info size={14} color="#a0a0a0" />
-            <span
+          {swapMode === "currency" && 'apy' in currentFrom && (
+            <div
               css={css`
-                font-size: 0.75rem;
-                color: #a0a0a0;
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                margin-top: 0.75rem;
               `}
             >
-              Earning {fromCurrency.apy} APY
-            </span>
-          </div>
+              <Info size={14} color="#a0a0a0" />
+              <span
+                css={css`
+                  font-size: 0.75rem;
+                  color: #a0a0a0;
+                `}
+              >
+                Earning {currentFrom.apy} APY
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Swap Direction Button */}
@@ -295,8 +382,8 @@ const SwapInterface = () => {
           >
             <input
               type="number"
-              value={toAmount}
-              onChange={(e) => setToAmount(e.target.value)}
+              value={currentToAmount}
+              onChange={(e) => setCurrentToAmount(e.target.value)}
               placeholder="0.00"
               css={css`
                 flex: 1;
@@ -314,6 +401,7 @@ const SwapInterface = () => {
             />
 
             <button
+              onClick={() => swapMode === "market" && setShowToTokenSelector(true)}
               css={css`
                 display: flex;
                 align-items: center;
@@ -332,29 +420,121 @@ const SwapInterface = () => {
                 }
               `}
             >
-              <span>{toCurrency.symbol}</span>
+              <span>{getSymbol(currentTo)}</span>
+              <CaretDown size={16} />
             </button>
           </div>
 
-          <div
-            css={css`
-              display: flex;
-              align-items: center;
-              gap: 0.5rem;
-              margin-top: 0.75rem;
-            `}
-          >
-            <Info size={14} color="#a0a0a0" />
-            <span
+          {swapMode === "currency" && 'apy' in currentTo && (
+            <div
               css={css`
-                font-size: 0.75rem;
-                color: #a0a0a0;
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                margin-top: 0.75rem;
               `}
             >
-              Earning {toCurrency.apy} APY
-            </span>
-          </div>
+              <Info size={14} color="#a0a0a0" />
+              <span
+                css={css`
+                  font-size: 0.75rem;
+                  color: #a0a0a0;
+                `}
+              >
+                Earning {currentTo.apy} APY
+              </span>
+            </div>
+          )}
         </div>
+
+        {/* Route Selector (Market mode only) */}
+        {swapMode === "market" && routes.length > 0 && (
+          <button
+            onClick={() => setShowRoutes(true)}
+            css={css`
+              width: 100%;
+              padding: 1rem;
+              background: rgba(0, 0, 0, 0.3);
+              border: 1px solid rgba(255, 255, 255, 0.08);
+              border-radius: 12px;
+              margin-bottom: 1rem;
+              cursor: pointer;
+              transition: all 0.2s;
+
+              &:hover {
+                background: rgba(255, 255, 255, 0.05);
+                border-color: rgba(220, 253, 143, 0.3);
+              }
+            `}
+          >
+            <div
+              css={css`
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+              `}
+            >
+              <div
+                css={css`
+                  text-align: left;
+                `}
+              >
+                <div
+                  css={css`
+                    font-size: 0.75rem;
+                    color: #a0a0a0;
+                    margin-bottom: 0.25rem;
+                  `}
+                >
+                  Route via
+                </div>
+                <div
+                  css={css`
+                    font-size: 0.9375rem;
+                    font-weight: 600;
+                    color: #ffffff;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                  `}
+                >
+                  {selectedRoute?.quote.dexName || 'Select Route'}
+                  {selectedRoute?.isBestPrice && (
+                    <span
+                      css={css`
+                        background: rgba(220, 253, 143, 0.2);
+                        color: #dcfd8f;
+                        padding: 0.125rem 0.375rem;
+                        border-radius: 4px;
+                        font-size: 0.625rem;
+                        font-weight: 600;
+                      `}
+                    >
+                      BEST
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div
+                css={css`
+                  display: flex;
+                  align-items: center;
+                  gap: 0.5rem;
+                `}
+              >
+                <span
+                  css={css`
+                    font-size: 0.875rem;
+                    color: #a0a0a0;
+                  `}
+                >
+                  {routes.length} routes
+                </span>
+                <CaretDown size={16} color="#a0a0a0" />
+              </div>
+            </div>
+          </button>
+        )}
 
         {/* Swap Button */}
         <button
@@ -381,11 +561,13 @@ const SwapInterface = () => {
               transform: none;
             }
           `}
-          disabled={!fromAmount || parseFloat(fromAmount) <= 0}
+          disabled={!currentFromAmount || parseFloat(currentFromAmount) <= 0 || (swapMode === "market" && isLoadingRoutes)}
         >
-          {!fromAmount || parseFloat(fromAmount) <= 0
+          {isLoadingRoutes && swapMode === "market"
+            ? "Finding best route..."
+            : !currentFromAmount || parseFloat(currentFromAmount) <= 0
             ? "Enter an amount"
-            : "Swap"}
+            : swapMode === "market" ? "Swap Tokens" : "Swap Currency"}
         </button>
       </div>
 
@@ -422,7 +604,9 @@ const SwapInterface = () => {
               color: #fff;
             `}
           >
-            1 {fromCurrency.symbol} = 0.92 {toCurrency.symbol}
+            1 {getSymbol(currentFrom)} = {swapMode === "market" && selectedRoute 
+              ? selectedRoute.quote.exchangeRate.toFixed(4)
+              : swapMode === "market" ? "1.02" : "0.92"} {getSymbol(currentTo)}
           </div>
         </div>
 
@@ -450,10 +634,47 @@ const SwapInterface = () => {
               color: #fff;
             `}
           >
-            0.3%
+            {swapMode === "market" && selectedRoute 
+              ? `${selectedRoute.quote.fee}%`
+              : "0.3%"}
           </div>
         </div>
       </div>
+
+      {/* Route Selector Modal */}
+      <RouteSelector
+        routes={routes}
+        selectedRoute={selectedRoute}
+        onSelectRoute={(route) => {
+          setSelectedRoute(route);
+          setToTokenAmount(route.quote.outputAmount);
+        }}
+        isOpen={showRoutes}
+        onClose={() => setShowRoutes(false)}
+      />
+
+      {/* Token Selector Modals */}
+      <TokenSelector
+        tokens={hederaTokens}
+        selectedToken={fromToken}
+        onSelectToken={(token) => {
+          setFromToken(token);
+          setShowFromTokenSelector(false);
+        }}
+        isOpen={showFromTokenSelector}
+        onClose={() => setShowFromTokenSelector(false)}
+      />
+
+      <TokenSelector
+        tokens={hederaTokens}
+        selectedToken={toToken}
+        onSelectToken={(token) => {
+          setToToken(token);
+          setShowToTokenSelector(false);
+        }}
+        isOpen={showToTokenSelector}
+        onClose={() => setShowToTokenSelector(false)}
+      />
     </div>
   );
 };
