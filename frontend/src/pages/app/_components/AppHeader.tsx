@@ -23,8 +23,15 @@ const navItems: NavItem[] = [
   { id: "governance", label: "Governance" },
 ];
 
-const AppHeader = () => {
-  const [activeItem, setActiveItem] = useState("swap");
+interface AppHeaderProps {
+  onPageChange: (page: string) => void;
+}
+
+const AppHeader = ({ onPageChange }: AppHeaderProps) => {
+  // Sync with persisted page
+  const [activeItem, setActiveItem] = useState(() => {
+    return localStorage.getItem("prism_active_page") || "swap";
+  });
   const [searchQuery, setSearchQuery] = useState("");
   const [isWalletSidebarOpen, setIsWalletSidebarOpen] = useState(false);
   const [isAccountSidebarOpen, setIsAccountSidebarOpen] = useState(false);
@@ -32,6 +39,11 @@ const AppHeader = () => {
   const [hbarPrice, setHbarPrice] = useState<TokenPrice>({ price: 0, change24h: 0 });
   const [packPrice, setPackPrice] = useState<TokenPrice>({ price: 0, change24h: 0 });
   const [isLoadingPrices, setIsLoadingPrices] = useState(true);
+  
+  const handleNavClick = (itemId: string) => {
+    setActiveItem(itemId);
+    onPageChange(itemId);
+  };
 
   // Fetch real-time prices from CoinGecko
   useEffect(() => {
@@ -156,7 +168,7 @@ const AppHeader = () => {
                 return (
                   <button
                     key={item.id}
-                    onClick={() => setActiveItem(item.id)}
+                    onClick={() => handleNavClick(item.id)}
                     css={css`
                       margin-top: 0.125rem;
                       display: flex;
@@ -256,6 +268,54 @@ const AppHeader = () => {
               height: 100%;
             `}
           >
+            {/* Network Switcher */}
+            <button
+              onClick={() => {
+                const current = localStorage.getItem('hedera_network') || 'mainnet';
+                const newNetwork = current === 'mainnet' ? 'testnet' : 'mainnet';
+                localStorage.setItem('hedera_network', newNetwork);
+                // Don't clear cache - let it use network-specific cache
+                window.location.reload();
+              }}
+              css={css`
+                margin-top: 0.125rem;
+                display: flex;
+                height: 100%;
+                align-items: center;
+                justify-content: center;
+                font-size: 0.75rem;
+                line-height: 1.25rem;
+                font-weight: 600;
+                color: ${(localStorage.getItem('hedera_network') || 'mainnet') === 'mainnet' ? '#4ade80' : '#fbbf24'};
+                padding: 0.375rem 0.75rem;
+                background: ${(localStorage.getItem('hedera_network') || 'mainnet') === 'mainnet' 
+                  ? 'rgba(74, 222, 128, 0.1)' 
+                  : 'rgba(251, 191, 36, 0.1)'};
+                border: 1px solid ${(localStorage.getItem('hedera_network') || 'mainnet') === 'mainnet' 
+                  ? 'rgba(74, 222, 128, 0.3)' 
+                  : 'rgba(251, 191, 36, 0.3)'};
+                border-radius: 9999px;
+                cursor: pointer;
+                transition: all 0.15s;
+                white-space: nowrap;
+                gap: 0.375rem;
+
+                &:hover {
+                  background: ${(localStorage.getItem('hedera_network') || 'mainnet') === 'mainnet' 
+                    ? 'rgba(74, 222, 128, 0.15)' 
+                    : 'rgba(251, 191, 36, 0.15)'};
+                }
+              `}
+            >
+              <span css={css`
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: ${(localStorage.getItem('hedera_network') || 'mainnet') === 'mainnet' ? '#4ade80' : '#fbbf24'};
+              `} />
+              {(localStorage.getItem('hedera_network') || 'mainnet') === 'mainnet' ? 'Mainnet' : 'Testnet'}
+            </button>
+
             <button
               css={css`
                 margin-top: 0.125rem;

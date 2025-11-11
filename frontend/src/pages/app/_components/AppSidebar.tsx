@@ -24,9 +24,12 @@ const navItems: NavItem[] = [
   { id: "earn", label: "Earn", icon: Lightning },
 ];
 
-const AppSidebar = () => {
-  const [activeItem, setActiveItem] = useState("swap");
+interface AppSidebarProps {
+  activePage: string;
+  onPageChange: (page: string) => void;
+}
 
+const AppSidebar = ({ activePage, onPageChange }: AppSidebarProps) => {
   return (
     <aside
       css={css`
@@ -49,12 +52,12 @@ const AppSidebar = () => {
         >
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = activeItem === item.id;
+            const isActive = activePage === item.id;
 
             return (
               <li key={item.id}>
                 <button
-                  onClick={() => setActiveItem(item.id)}
+                  onClick={() => onPageChange(item.id)}
                   css={css`
                     width: 100%;
                     display: flex;

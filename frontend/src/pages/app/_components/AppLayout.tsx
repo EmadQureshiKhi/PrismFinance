@@ -4,9 +4,10 @@ import AppHeader from "./AppHeader";
 
 interface AppLayoutProps {
   children: ReactNode;
+  onPageChange: (page: string) => void;
 }
 
-const AppLayout = ({ children }: AppLayoutProps) => {
+const AppLayout = ({ children, onPageChange }: AppLayoutProps) => {
   return (
     <div
       css={css`
@@ -15,7 +16,7 @@ const AppLayout = ({ children }: AppLayoutProps) => {
         min-height: 100vh;
       `}
     >
-      <AppHeader />
+      <AppHeader onPageChange={onPageChange} />
       <main
         css={css`
           flex: 1;
