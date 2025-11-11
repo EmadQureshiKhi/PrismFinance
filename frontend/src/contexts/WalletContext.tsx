@@ -81,6 +81,14 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       }
       const walletConnection = await service.connect();
 
+      // For HashPack, expose HashConnect instance globally
+      if (walletId === 'hashpack' && hashpackService) {
+        const hashconnect = hashpackService.getHashConnect();
+        if (hashconnect && typeof window !== 'undefined') {
+          (window as any).hashconnect = hashconnect;
+        }
+      }
+
       // Initialize token service for the network
       const hederaTokenService = new HederaTokenService(walletConnection.network);
       setTokenService(hederaTokenService);

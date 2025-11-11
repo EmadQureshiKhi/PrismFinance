@@ -24,6 +24,10 @@ export class HashPackService implements IWalletService {
     return typeof window !== 'undefined';
   }
 
+  getHashConnect(): HashConnect | null {
+    return this.hashconnect;
+  }
+
   async connect(): Promise<WalletConnection> {
     // Prevent multiple simultaneous connection attempts
     if (this.isConnecting) {
