@@ -1,0 +1,26 @@
+{
+  "name": "prism-finance-contracts",
+  "version": "1.0.0",
+  "description": "Prism Finance Smart Contracts for Hedera",
+  "scripts": {
+    "compile": "hardhat compile",
+    "deploy": "hardhat run scripts/deploy.js --network testnet",
+    "deploy:oracle": "hardhat run scripts/deployOracle.js --network testnet",
+    "deploy:vault": "hardhat run scripts/deployVault.js --network testnet",
+    "deploy:vaultv2": "hardhat run scripts/deployVaultV2.js --network testnet",
+    "test:oracle": "hardhat run scripts/testOracle.js --network testnet",
+    "test:vault": "hardhat run scripts/testVault.js --network testnet",
+    "test:vaultv2": "hardhat run scripts/testVaultV2.js --network testnet",
+    "attest": "hardhat run scripts/publishAttestation.js --network testnet",
+    "test": "hardhat test"
+  },
+  "dependencies": {
+    "@hashgraph/sdk": "^2.49.2",
+    "ethers": "^6.13.4",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.18"
+  }
+}
