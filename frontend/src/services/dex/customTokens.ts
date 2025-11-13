@@ -1,67 +1,76 @@
 import { HederaToken } from './types';
 
 /**
- * Manually curated list of tokens to display in Prism Finance
- * Add your tokens here with all the metadata
+ * Testnet-only token list for Prism Finance
+ * Using official SaucerSwap Testnet token IDs
  */
-export const CUSTOM_TOKENS: HederaToken[] = [
-    // HBAR - Native token
-    {
-        tokenId: 'HBAR',
-        symbol: 'HBAR',
-        name: 'Hedera',
-        decimals: 8,
-        type: 'FUNGIBLE_COMMON',
-        logo: 'https://dwk1opv266jxs.cloudfront.net/icons/tokens/hbar.png',
-    },
-
-    // SAUCE - SaucerSwap Token
-    {
-        tokenId: '0.0.731861',
-        symbol: 'SAUCE',
-        name: 'SaucerSwap',
-        decimals: 6,
-        type: 'FUNGIBLE_COMMON',
-        logo: 'https://dwk1opv266jxs.cloudfront.net/icons/tokens/0.0.731861.png',
-    },
-
-    // USDC - USD Coin
-    {
-        tokenId: '0.0.456858',
-        symbol: 'USDC',
-        name: 'USD Coin',
-        decimals: 6,
-        type: 'FUNGIBLE_COMMON',
-        logo: 'https://dwk1opv266jxs.cloudfront.net/icons/tokens/0.0.456858.png',
-    },
-
-    // XSAUCE - Staked SAUCE
-    {
-        tokenId: '0.0.1460200',
-        symbol: 'XSAUCE',
-        name: 'xSAUCE',
-        decimals: 6,
-        type: 'FUNGIBLE_COMMON',
-        logo: 'https://dwk1opv266jxs.cloudfront.net/icons/tokens/0.0.1460200.png',
-    },
-
-    // HBARX - Stader Staked HBAR
-    {
-        tokenId: '0.0.834116',
-        symbol: 'HBARX',
-        name: 'Stader HBARX',
-        decimals: 8,
-        type: 'FUNGIBLE_COMMON',
-        logo: 'https://dwk1opv266jxs.cloudfront.net/icons/tokens/0.0.834116.png',
-    },
-
-    // BONZO
-    {
-        tokenId: '0.0.8279134',
-        symbol: 'BONZO',
-        name: 'BONZO',
-        decimals: 8,
-        type: 'FUNGIBLE_COMMON',
-        logo: 'https://dwk1opv266jxs.cloudfront.net/icons/tokens/0.0.8279134.png',
-    },
+/**
+ * Testnet tokens with active liquidity pools
+ * Sorted by pool count (most liquid first)
+ */
+export const TESTNET_TOKENS: HederaToken[] = [
+  {
+    tokenId: 'HBAR',
+    symbol: 'HBAR',
+    name: 'Hedera',
+    decimals: 8,
+    type: 'FUNGIBLE_COMMON',
+    logo: 'https://dwk1opv266jxs.cloudfront.net/icons/tokens/hbar.png',
+  },
+  {
+    tokenId: '0.0.5449',
+    symbol: 'USDC',
+    name: 'USD Coin',
+    decimals: 6,
+    type: 'FUNGIBLE_COMMON',
+    logo: 'https://dwk1opv266jxs.cloudfront.net/icons/tokens/usdc.png',
+  },
+  {
+    tokenId: '0.0.1183558',
+    symbol: 'SAUCE',
+    name: 'SaucerSwap',
+    decimals: 6,
+    type: 'FUNGIBLE_COMMON',
+    logo: 'https://dwk1opv266jxs.cloudfront.net/icons/tokens/sauce.png',
+  },
+  {
+    tokenId: '0.0.5529',
+    symbol: 'DAI',
+    name: 'Dai Stablecoin',
+    decimals: 8,
+    type: 'FUNGIBLE_COMMON',
+    logo: 'https://dwk1opv266jxs.cloudfront.net/icons/tokens/dai.png',
+  },
+  {
+    tokenId: '0.0.5365',
+    symbol: 'CLXY',
+    name: 'Calaxy',
+    decimals: 6,
+    type: 'FUNGIBLE_COMMON',
+    logo: 'https://dwk1opv266jxs.cloudfront.net/icons/tokens/clxy.png',
+  },
+  {
+    tokenId: '0.0.2231533',
+    symbol: 'HBARX',
+    name: 'Stader HBARX',
+    decimals: 8,
+    type: 'FUNGIBLE_COMMON',
+    logo: 'https://dwk1opv266jxs.cloudfront.net/icons/tokens/hbarx.png',
+  },
+  {
+    tokenId: '0.0.5599',
+    symbol: 'ALPHA',
+    name: 'Alpha',
+    decimals: 8,
+    type: 'FUNGIBLE_COMMON',
+    logo: 'https://dwk1opv266jxs.cloudfront.net/icons/tokens/alpha.png',
+  },
+  {
+    tokenId: '0.0.3772909',
+    symbol: 'KARATE',
+    name: 'Karate Combat',
+    decimals: 8,
+    type: 'FUNGIBLE_COMMON',
+    logo: 'https://dwk1opv266jxs.cloudfront.net/icons/tokens/karate.png',
+  },
 ];

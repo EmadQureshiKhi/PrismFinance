@@ -4,11 +4,13 @@ import { SaucerSwapDex } from './dexes/SaucerSwapDex';
 export class DexAggregator {
   private dexes: Map<string, DexInterface> = new Map();
 
-  constructor() {
+  constructor(network: 'mainnet' | 'testnet' = 'testnet') {
     // Register Hedera DEXes with swap APIs
-    // SaucerSwap - Largest Hedera DEX (needs API key)
+    // SaucerSwap - Largest Hedera DEX with API (testnet only for now)
     // More DEXes can be added here as they become available
     this.registerDex(new SaucerSwapDex());
+    
+    console.log(`🔧 DexAggregator initialized for ${network}`);
   }
 
   private registerDex(dex: DexInterface) {
@@ -17,6 +19,7 @@ export class DexAggregator {
 
   /**
    * Get quotes from all DEXes and return sorted by best price
+   * Now supports multiple routes from each DEX
    */
   async aggregateQuotes(
     inputToken: string,
@@ -28,44 +31,51 @@ export class DexAggregator {
 
     console.log(`🔍 Aggregating quotes for ${amount} ${inputToken} → ${outputToken}`);
 
-    // Fetch quotes from all DEXes in parallel
+    // Fetch all quotes from all DEXes in parallel
     const quotePromises = dexes.map(async (dexName) => {
       const dex = this.dexes.get(dexName.toLowerCase());
-      if (!dex) return null;
+      if (!dex) return [];
 
       try {
         const isAvailable = await dex.isAvailable();
-        if (!isAvailable) return null;
+        if (!isAvailable) return [];
 
-        return await dex.getQuote(inputToken, outputToken, amount);
+        // Check if DEX supports getAllQuotes (for multiple routes)
+        if ('getAllQuotes' in dex && typeof dex.getAllQuotes === 'function') {
+          return await (dex as any).getAllQuotes(inputToken, outputToken, amount);
+        } else {
+          // Fallback to single quote
+          const quote = await dex.getQuote(inputToken, outputToken, amount);
+          return quote ? [quote] : [];
+        }
       } catch (error) {
-        console.error(`Error getting quote from ${dexName}:`, error);
-        return null;
+        console.error(`Error getting quotes from ${dexName}:`, error);
+        return [];
       }
     });
 
     // Wait for all quotes with timeout
-    const quotes = await Promise.race([
+    const quotesArrays = await Promise.race([
       Promise.all(quotePromises),
-      new Promise<(SwapQuote | null)[]>((resolve) =>
+      new Promise<SwapQuote[][]>((resolve) =>
         setTimeout(() => resolve([]), timeout)
       ),
     ]);
 
-    // Filter out null quotes and sort by output amount (best first)
-    const validQuotes = quotes.filter((q): q is SwapQuote => q !== null);
+    // Flatten all quotes from all DEXes
+    const allQuotes = quotesArrays.flat();
 
-    if (validQuotes.length === 0) {
+    if (allQuotes.length === 0) {
       console.warn('⚠️ No valid quotes received');
       return [];
     }
 
     // Sort by output amount (descending)
-    validQuotes.sort((a, b) => parseFloat(b.outputAmount) - parseFloat(a.outputAmount));
+    allQuotes.sort((a, b) => parseFloat(b.outputAmount) - parseFloat(a.outputAmount));
 
     // Create routes with best price indicator
-    const bestOutputAmount = parseFloat(validQuotes[0].outputAmount);
-    const routes: SwapRoute[] = validQuotes.map((quote, index) => {
+    const bestOutputAmount = parseFloat(allQuotes[0].outputAmount);
+    const routes: SwapRoute[] = allQuotes.map((quote, index) => {
       const outputAmount = parseFloat(quote.outputAmount);
       const isBestPrice = index === 0;
       const savingsVsBest = isBestPrice
@@ -80,7 +90,15 @@ export class DexAggregator {
       };
     });
 
-    console.log(`✅ Found ${routes.length} routes, best: ${routes[0].quote.dexName}`);
+    console.log(`✅ Found ${routes.length} routes across all DEXes, best: ${routes[0].quote.dexName}`);
+    routes.forEach((r, i) => {
+      const routeStr = r.quote.route.map(id => {
+        const symbol = id === 'HBAR' ? 'HBAR' : id.split('.').pop();
+        return symbol;
+      }).join(' → ');
+      console.log(`   ${i + 1}. ${r.quote.dexName}: ${r.quote.outputAmount} via ${routeStr} ${r.isBestPrice ? '⭐' : ''}`);
+    });
+
     return routes;
   }
 
