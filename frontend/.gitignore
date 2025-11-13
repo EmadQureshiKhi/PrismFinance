@@ -28,3 +28,5 @@ dist-ssr
 *.sln
 *.sw?
 .DS_Store
+
+/generated/prisma

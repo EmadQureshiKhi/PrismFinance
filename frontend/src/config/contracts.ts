@@ -4,6 +4,9 @@ export const CONTRACTS = {
   vault: "0x16b53f394F945F8753a5F6d94014FF08fd9CC3CB",
   oracle: "0xd1394560fe24826918b55f041E0751b3f673b397",
   priceOracle: "0x739dD942065280A743DdfeF0De01A7B5FeD0f69B",
+  // Asset Exchange contracts (ownership-based)
+  pythOracle: "0xeDf3471eCb704063Ef872eD1C81c144ACBA4777c",
+  assetExchange: "0x6bCdFAbDA95Adf6B5A2fE1Ab40c84a52B2f7ED59",
   hcsTopic: "0.0.7232509",
   tokens: {
     pUSD: "0.0.7228971",
@@ -138,6 +141,10 @@ export const TOKEN_METADATA = {
     apy: "15.0%",
   },
 };
+
+// Separate currencies (debt-based) from assets (ownership-based)
+export const CURRENCIES = ["pUSD", "pEUR", "pGBP", "pJPY", "pHKD", "pAED"];
+export const ASSETS = ["pTSLA", "pAAPL", "pBTC", "pETH", "pGOLD", "pSPY", "pTBILL"];
 
 // HashScan links
 export const getHashScanLink = (address: string, type: "contract" | "token" | "topic" = "contract") => {

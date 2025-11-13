@@ -7,23 +7,27 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:db": "node test-db-connection.js",
+    "check:user": "node check-user.js"
   },
   "dependencies": {
     "@emotion/babel-plugin": "^11.13.5",
     "@emotion/css": "^11.13.5",
     "@emotion/react": "^11.14.0",
+    "hashconnect": "^3.0.14",
     "@hashgraph/sdk": "^2.76.0",
     "@headlessui/react": "^2.2.9",
     "@phosphor-icons/react": "^2.1.10",
+    "@prisma/client": "^6.19.0",
     "autoprefixer": "^10.4.21",
     "cn-utility": "^1.0.1",
     "ethers": "^6.15.0",
-    "hashconnect": "^3.0.14",
     "motion": "^12.23.24",
     "postcss": "^8.5.6",
     "postcss-easings": "^4.0.0",
     "postcss-preset-env": "^10.4.0",
+    "prisma": "^6.19.0",
     "react": "^19.1.1",
     "react-aria-components": "^1.13.0",
     "react-dom": "^19.1.1",
@@ -33,16 +37,20 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
+    "@supabase/supabase-js": "^2.81.1",
     "@types/node": "^24.6.0",
     "@types/react": "^19.1.16",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.4",
+    "dotenv": "^17.2.3",
     "eslint": "^9.36.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.22",
     "globals": "^16.4.0",
+    "pg": "^8.16.3",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.45.0",
-    "vite": "^7.1.7"
+    "vite": "^7.1.7",
+    "vite-plugin-node-polyfills": "^0.24.0"
   }
 }

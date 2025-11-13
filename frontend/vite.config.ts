@@ -26,8 +26,6 @@ export default defineConfig({
     include: [
       '@hashgraph/sdk',
       '@hashgraph/proto',
-      '@reown/appkit',
-      '@reown/appkit-adapter-ethers',
       'ethers'
     ],
     esbuildOptions: {

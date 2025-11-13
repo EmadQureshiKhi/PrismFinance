@@ -16,8 +16,10 @@
   },
   "dependencies": {
     "@hashgraph/sdk": "^2.49.2",
-    "ethers": "^6.13.4",
-    "dotenv": "^16.4.7"
+    "@openzeppelin/contracts": "^5.4.0",
+    "@pythnetwork/pyth-sdk-solidity": "^4.2.0",
+    "dotenv": "^16.4.7",
+    "ethers": "^6.13.4"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
