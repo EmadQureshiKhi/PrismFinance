@@ -44,13 +44,13 @@ const RouteSelector = ({
           left: 50%;
           transform: translate(-50%, -50%);
           width: 90%;
-          max-width: 480px;
+          max-width: 420px;
           background: #0c0d10;
           border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 24px;
-          padding: 1.5rem;
+          border-radius: 16px;
+          padding: 1rem;
           z-index: 1000;
-          max-height: 80vh;
+          max-height: 70vh;
           overflow-y: auto;
         `}
       >
@@ -59,13 +59,13 @@ const RouteSelector = ({
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 1.5rem;
+            margin-bottom: 1rem;
           `}
         >
           <h3
             css={css`
-              font-size: 1.25rem;
-              font-weight: 700;
+              font-size: 1rem;
+              font-weight: 600;
               color: #ffffff;
             `}
           >
@@ -77,8 +77,14 @@ const RouteSelector = ({
               background: transparent;
               border: none;
               color: #a0a0a0;
-              font-size: 1.5rem;
+              font-size: 1.25rem;
               cursor: pointer;
+              padding: 0;
+              width: 24px;
+              height: 24px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
               &:hover {
                 color: #ffffff;
               }
@@ -93,119 +99,153 @@ const RouteSelector = ({
           css={css`
             display: flex;
             flex-direction: column;
-            gap: 0.75rem;
+            gap: 0.5rem;
           `}
         >
-          {routes.map((route, index) => (
-            <button
-              key={route.quote.dexName}
-              onClick={() => {
-                onSelectRoute(route);
-                onClose();
-              }}
-              css={css`
-                background: ${selectedRoute?.quote.dexName === route.quote.dexName
-                  ? 'rgba(220, 253, 143, 0.1)'
-                  : 'rgba(0, 0, 0, 0.3)'};
-                border: 1px solid ${selectedRoute?.quote.dexName === route.quote.dexName
-                  ? '#dcfd8f'
-                  : 'rgba(255, 255, 255, 0.08)'};
-                border-radius: 16px;
-                padding: 1rem;
-                cursor: pointer;
-                transition: all 0.2s;
-                text-align: left;
+          {routes.map((route, index) => {
+            // Create unique key from route path
+            const routeKey = `${route.quote.dexName}-${route.quote.route.join('-')}`;
+            const isSelected = selectedRoute && 
+              selectedRoute.quote.dexName === route.quote.dexName &&
+              selectedRoute.quote.route.join('-') === route.quote.route.join('-');
+            
+            // Format route path for display
+            const routePath = route.quote.route
+              .map(tokenId => {
+                if (tokenId === 'HBAR') return 'HBAR';
+                const symbol = tokenId.split('.').pop();
+                // Map known token IDs to symbols
+                if (tokenId === '0.0.15058') return 'WHBAR';
+                if (tokenId === '0.0.5449') return 'USDC';
+                if (tokenId === '0.0.1183558') return 'SAUCE';
+                return symbol;
+              })
+              .join(' → ');
 
-                &:hover {
-                  background: rgba(220, 253, 143, 0.05);
-                  border-color: rgba(220, 253, 143, 0.3);
-                }
-              `}
-            >
-              <div
+            return (
+              <button
+                key={routeKey}
+                onClick={() => {
+                  onSelectRoute(route);
+                  onClose();
+                }}
                 css={css`
-                  display: flex;
-                  justify-content: space-between;
-                  align-items: center;
-                  margin-bottom: 0.5rem;
+                  background: ${isSelected
+                    ? 'rgba(220, 253, 143, 0.08)'
+                    : 'rgba(0, 0, 0, 0.3)'};
+                  border: 1px solid ${isSelected
+                    ? '#dcfd8f'
+                    : 'rgba(255, 255, 255, 0.08)'};
+                  border-radius: 12px;
+                  padding: 0.75rem;
+                  cursor: pointer;
+                  transition: all 0.15s;
+                  text-align: left;
+
+                  &:hover {
+                    background: rgba(220, 253, 143, 0.05);
+                    border-color: rgba(220, 253, 143, 0.3);
+                  }
                 `}
               >
+                {/* Header Row */}
                 <div
                   css={css`
                     display: flex;
+                    justify-content: space-between;
                     align-items: center;
-                    gap: 0.5rem;
+                    margin-bottom: 0.5rem;
                   `}
                 >
-                  <span
+                  <div
                     css={css`
-                      font-size: 1rem;
-                      font-weight: 600;
-                      color: #ffffff;
+                      display: flex;
+                      align-items: center;
+                      gap: 0.5rem;
                     `}
                   >
-                    {route.quote.dexName}
-                  </span>
-                  {route.isBestPrice && (
                     <span
                       css={css`
-                        background: rgba(220, 253, 143, 0.2);
-                        color: #dcfd8f;
-                        padding: 0.25rem 0.5rem;
-                        border-radius: 6px;
-                        font-size: 0.75rem;
+                        font-size: 0.875rem;
                         font-weight: 600;
+                        color: #ffffff;
                       `}
                     >
-                      Best Price
+                      {route.quote.dexName}
+                    </span>
+                    {route.isBestPrice && (
+                      <span
+                        css={css`
+                          background: rgba(220, 253, 143, 0.2);
+                          color: #dcfd8f;
+                          padding: 0.125rem 0.375rem;
+                          border-radius: 4px;
+                          font-size: 0.625rem;
+                          font-weight: 600;
+                          text-transform: uppercase;
+                        `}
+                      >
+                        Best
+                      </span>
+                    )}
+                  </div>
+                  {isSelected && (
+                    <Check size={16} color="#dcfd8f" weight="bold" />
+                  )}
+                </div>
+
+                {/* Output Amount */}
+                <div
+                  css={css`
+                    font-size: 1rem;
+                    font-weight: 600;
+                    color: #ffffff;
+                    margin-bottom: 0.375rem;
+                  `}
+                >
+                  {parseFloat(route.quote.outputAmount).toFixed(4)} {route.quote.outputToken.symbol}
+                  {!route.isBestPrice && route.savingsVsBest && (
+                    <span
+                      css={css`
+                        font-size: 0.75rem;
+                        color: #ff6b6b;
+                        margin-left: 0.5rem;
+                      `}
+                    >
+                      (-{route.savingsVsBest})
                     </span>
                   )}
                 </div>
-                {selectedRoute?.quote.dexName === route.quote.dexName && (
-                  <Check size={20} color="#dcfd8f" weight="bold" />
-                )}
-              </div>
 
-              <div
-                css={css`
-                  display: flex;
-                  justify-content: space-between;
-                  align-items: center;
-                `}
-              >
-                <div>
-                  <div
-                    css={css`
-                      font-size: 1.125rem;
-                      font-weight: 600;
-                      color: #ffffff;
-                    `}
-                  >
-                    {route.quote.outputAmount} {route.quote.outputToken.symbol}
-                  </div>
+                {/* Route Path & Details */}
+                <div
+                  css={css`
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                  `}
+                >
                   <div
                     css={css`
                       font-size: 0.75rem;
-                      color: #a0a0a0;
-                      margin-top: 0.25rem;
+                      color: #808080;
                     `}
                   >
-                    Fee: {route.quote.fee}% • Gas: ~{route.quote.estimatedGas} HBAR
+                    {routePath}
                   </div>
-                </div>
-                {!route.isBestPrice && route.savingsVsBest && (
                   <div
                     css={css`
-                      font-size: 0.875rem;
-                      color: #ff4d4d;
+                      font-size: 0.625rem;
+                      color: #606060;
+                      text-align: right;
                     `}
                   >
-                    -{route.savingsVsBest}
+                    {route.quote.fee}% fee
                   </div>
-                )}
-              </div>
-            </button>
-          ))}
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
     </>

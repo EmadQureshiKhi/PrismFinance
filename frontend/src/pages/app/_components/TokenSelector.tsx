@@ -13,10 +13,10 @@ interface TokenSelectorProps {
   selectedToken: Token;
   onSelectToken: (token: Token) => void;
   currencies: Token[];
-  assets: Token[];
+  assets?: Token[];
 }
 
-export default function TokenSelector({ selectedToken, onSelectToken, currencies, assets }: TokenSelectorProps) {
+export default function TokenSelector({ selectedToken, onSelectToken, currencies, assets = [] }: TokenSelectorProps) {
   const [showDropdown, setShowDropdown] = useState(false);
 
   return (
@@ -81,10 +81,12 @@ export default function TokenSelector({ selectedToken, onSelectToken, currencies
             }
           `}
         >
-          <div css={css`padding: 0.5rem; font-size: 0.75rem; color: #a0a0a0; font-weight: 600;`}>
-            CURRENCIES
-          </div>
-          {currencies.map((token) => (
+          {currencies.length > 0 && (
+            <>
+              <div css={css`padding: 0.5rem; font-size: 0.75rem; color: #a0a0a0; font-weight: 600;`}>
+                CURRENCIES
+              </div>
+              {currencies.map((token) => (
             <button
               key={token.symbol}
               onClick={() => {
@@ -121,11 +123,15 @@ export default function TokenSelector({ selectedToken, onSelectToken, currencies
               <div css={css`font-size: 0.75rem; color: #dcfd8f; font-weight: 600;`}>{token.apy}</div>
             </button>
           ))}
+            </>
+          )}
           
-          <div css={css`padding: 0.5rem; font-size: 0.75rem; color: #a0a0a0; font-weight: 600; margin-top: 0.5rem;`}>
-            ASSETS
-          </div>
-          {assets.map((token) => (
+          {assets.length > 0 && (
+            <>
+              <div css={css`padding: 0.5rem; font-size: 0.75rem; color: #a0a0a0; font-weight: 600; margin-top: 0.5rem;`}>
+                ASSETS
+              </div>
+              {assets.map((token) => (
             <button
               key={token.symbol}
               onClick={() => {
@@ -162,6 +168,8 @@ export default function TokenSelector({ selectedToken, onSelectToken, currencies
               <div css={css`font-size: 0.75rem; color: #dcfd8f; font-weight: 600;`}>{token.apy}</div>
             </button>
           ))}
+            </>
+          )}
         </div>
       )}
     </div>

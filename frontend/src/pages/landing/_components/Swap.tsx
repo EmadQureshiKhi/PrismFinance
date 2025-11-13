@@ -49,7 +49,7 @@ const Swap = () => {
               width: 10rem;
             `}
           >
-            <Button size="large" onPress={() => {}} expand>
+            <Button size="large" onPress={() => { }} expand>
               Swap now
             </Button>
           </div>

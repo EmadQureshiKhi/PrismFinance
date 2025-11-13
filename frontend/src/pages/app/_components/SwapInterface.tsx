@@ -2,9 +2,12 @@ import { css } from "@emotion/react";
 import { useState, useEffect } from "react";
 import { ArrowsDownUp, GearSix, Info, CaretDown } from "@phosphor-icons/react";
 import { useDexAggregator } from "@/hooks/useDexAggregator";
+import { useSwapExecution } from "@/hooks/useSwapExecution";
+import { useWallet } from "@/contexts/WalletContext";
 import RouteSelector from "./swap/RouteSelector";
 import TokenSelector from "./swap/TokenSelector";
 import { SwapRoute, HederaToken } from "@/services/dex/types";
+import { ethers } from "ethers";
 
 // Hedera native tokens for Market swap
 const tokens = [
@@ -25,25 +28,62 @@ const currencies = [
   { symbol: "pAED", name: "Prism AED", apy: "11.5%" },
 ];
 
+// Helper functions for token balance
+function toEvmAddress(tokenId: string): string {
+  const parts = tokenId.split('.');
+  const num = parseInt(parts[parts.length - 1]);
+  return num.toString(16).padStart(40, '0');
+}
+
+async function getTokenBalance(
+  provider: any,
+  address: string,
+  tokenId: string,
+  decimals: number
+): Promise<string> {
+  try {
+    const tokenAddress = '0x' + toEvmAddress(tokenId);
+    const abi = ['function balanceOf(address owner) view returns (uint256)'];
+    const tokenContract = new ethers.Contract(tokenAddress, abi, provider);
+    const balance = await tokenContract.balanceOf(address);
+    const balanceFormatted = ethers.formatUnits(balance, decimals);
+    return parseFloat(balanceFormatted).toFixed(2);
+  } catch (error) {
+    console.error(`Error fetching balance for ${tokenId}:`, error);
+    return '0.00';
+  }
+}
+
 const SwapInterface = () => {
   const [swapMode, setSwapMode] = useState<"market" | "currency">("market");
-  
+
+  // Wallet context
+  const { connection } = useWallet();
+
   // DEX Aggregator hook
   const { tokens: hederaTokens, routes, getQuotes, isLoadingRoutes } = useDexAggregator();
   const [selectedRoute, setSelectedRoute] = useState<SwapRoute | null>(null);
   const [showRoutes, setShowRoutes] = useState(false);
   const [autoRoute, setAutoRoute] = useState(true);
-  
+
+  // Swap execution hook
+  const { isExecuting, error: swapError, txHash, executeSwap, reset: resetSwap } = useSwapExecution();
+  const [slippage, setSlippage] = useState(2.0); // 2% default slippage for testnet volatility
+
   // Token selector state
   const [showFromTokenSelector, setShowFromTokenSelector] = useState(false);
   const [showToTokenSelector, setShowToTokenSelector] = useState(false);
-  
+
   // Market mode state (token swap with DEX aggregator)
   const [fromToken, setFromToken] = useState<HederaToken | null>(null);
   const [toToken, setToToken] = useState<HederaToken | null>(null);
   const [fromTokenAmount, setFromTokenAmount] = useState("");
   const [toTokenAmount, setToTokenAmount] = useState("");
-  
+
+  // Wallet balance state
+  const [fromBalance, setFromBalance] = useState<string>("0.00");
+  const [toBalance, setToBalance] = useState<string>("0.00");
+
   // Set default tokens when loaded
   useEffect(() => {
     if (hederaTokens.length > 0 && !fromToken) {
@@ -51,7 +91,80 @@ const SwapInterface = () => {
       setToToken(hederaTokens.find(t => t.symbol === 'USDC') || hederaTokens[1]);
     }
   }, [hederaTokens, fromToken]);
-  
+
+  // Fetch wallet balances using existing wallet connection
+  useEffect(() => {
+    const fetchBalances = async () => {
+      if (!connection) {
+        setFromBalance("0.00");
+        setToBalance("0.00");
+        return;
+      }
+
+      try {
+        const accountId = connection.account.accountId;
+        const network = connection.network || 'testnet';
+        const mirrorNodeUrl = network === 'mainnet'
+          ? 'https://mainnet-public.mirrornode.hedera.com'
+          : 'https://testnet.mirrornode.hedera.com';
+
+        // Fetch from token balance
+        if (fromToken?.tokenId === 'HBAR') {
+          // Fetch HBAR balance from Mirror Node
+          const response = await fetch(`${mirrorNodeUrl}/api/v1/accounts/${accountId}`);
+          if (response.ok) {
+            const data = await response.json();
+            const hbarBalance = (data.balance.balance / 1e8).toFixed(2);
+            setFromBalance(hbarBalance);
+          }
+        } else if (fromToken) {
+          // Fetch HTS token balance from Mirror Node
+          const response = await fetch(`${mirrorNodeUrl}/api/v1/accounts/${accountId}/tokens?token.id=${fromToken.tokenId}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.tokens && data.tokens.length > 0) {
+              const tokenBalance = (data.tokens[0].balance / Math.pow(10, fromToken.decimals)).toFixed(2);
+              setFromBalance(tokenBalance);
+            } else {
+              setFromBalance("0.00");
+            }
+          }
+        }
+
+        // Fetch to token balance
+        if (toToken?.tokenId === 'HBAR') {
+          // Fetch HBAR balance from Mirror Node
+          const response = await fetch(`${mirrorNodeUrl}/api/v1/accounts/${accountId}`);
+          if (response.ok) {
+            const data = await response.json();
+            const hbarBalance = (data.balance.balance / 1e8).toFixed(2);
+            setToBalance(hbarBalance);
+          }
+        } else if (toToken) {
+          // Fetch HTS token balance from Mirror Node
+          const response = await fetch(`${mirrorNodeUrl}/api/v1/accounts/${accountId}/tokens?token.id=${toToken.tokenId}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.tokens && data.tokens.length > 0) {
+              const tokenBalance = (data.tokens[0].balance / Math.pow(10, toToken.decimals)).toFixed(2);
+              setToBalance(tokenBalance);
+            } else {
+              setToBalance("0.00");
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching balances:', error);
+      }
+    };
+
+    fetchBalances();
+
+    // Refresh balances every 10 seconds
+    const interval = setInterval(fetchBalances, 10000);
+    return () => clearInterval(interval);
+  }, [connection, fromToken, toToken]);
+
   // Currency mode state (stablecoin swap)
   const [fromCurrency, setFromCurrency] = useState(currencies[0]);
   const [toCurrency, setToCurrency] = useState(currencies[1]);
@@ -98,10 +211,10 @@ const SwapInterface = () => {
   const currentTo = swapMode === "market" ? toToken : toCurrency;
   const currentFromAmount = swapMode === "market" ? fromTokenAmount : fromAmount;
   const currentToAmount = swapMode === "market" ? toTokenAmount : toAmount;
-  
+
   const setCurrentFromAmount = swapMode === "market" ? setFromTokenAmount : setFromAmount;
   const setCurrentToAmount = swapMode === "market" ? setToTokenAmount : setToAmount;
-  
+
   // Get symbol safely
   const getSymbol = (item: any) => {
     if (!item) return '...';
@@ -142,9 +255,9 @@ const SwapInterface = () => {
               border-radius: 9999px;
             `}
           >
-          <button
-            onClick={() => setSwapMode("market")}
-            css={css`
+            <button
+              onClick={() => setSwapMode("market")}
+              css={css`
               flex: 1;
               padding: 0.625rem 1rem;
               background: ${swapMode === "market" ? "rgba(220, 253, 143, 0.15)" : "transparent"};
@@ -162,12 +275,12 @@ const SwapInterface = () => {
                 color: ${swapMode === "market" ? "#dcfd8f" : "#ffffff"};
               }
             `}
-          >
-            Market
-          </button>
-          <button
-            onClick={() => setSwapMode("currency")}
-            css={css`
+            >
+              Market
+            </button>
+            <button
+              onClick={() => setSwapMode("currency")}
+              css={css`
               flex: 1;
               padding: 0.625rem 1rem;
               background: ${swapMode === "currency" ? "rgba(220, 253, 143, 0.15)" : "transparent"};
@@ -185,9 +298,9 @@ const SwapInterface = () => {
                 color: ${swapMode === "currency" ? "#dcfd8f" : "#ffffff"};
               }
             `}
-          >
-            Currency
-          </button>
+            >
+              Currency
+            </button>
           </div>
         </div>
 
@@ -223,7 +336,7 @@ const SwapInterface = () => {
                 color: #a0a0a0;
               `}
             >
-              Balance: 0.00
+              Balance: {fromBalance}
             </span>
           </div>
 
@@ -369,7 +482,7 @@ const SwapInterface = () => {
                 color: #a0a0a0;
               `}
             >
-              Balance: 0.00
+              Balance: {toBalance}
             </span>
           </div>
 
@@ -538,10 +651,25 @@ const SwapInterface = () => {
 
         {/* Swap Button */}
         <button
+          onClick={async () => {
+            if (swapMode === "market" && selectedRoute) {
+              try {
+                await executeSwap(selectedRoute.quote, slippage);
+                alert(`✅ Swap successful! Transaction: ${txHash}`);
+                // Reset form
+                setFromTokenAmount("");
+                setToTokenAmount("");
+              } catch (error: any) {
+                alert(`❌ Swap failed: ${error.message}`);
+              }
+            }
+          }}
           css={css`
             width: 100%;
             padding: 1.125rem;
-            background: linear-gradient(135deg, #dcfd8f 0%, #a8e063 100%);
+            background: ${isExecuting
+              ? 'linear-gradient(135deg, #808080 0%, #606060 100%)'
+              : 'linear-gradient(135deg, #dcfd8f 0%, #a8e063 100%)'};
             border: none;
             border-radius: 16px;
             color: #02302c;
@@ -551,8 +679,8 @@ const SwapInterface = () => {
             transition: all 0.2s;
 
             &:hover {
-              transform: translateY(-2px);
-              box-shadow: 0 12px 24px rgba(220, 253, 143, 0.3);
+              transform: ${isExecuting ? 'none' : 'translateY(-2px)'};
+              box-shadow: ${isExecuting ? 'none' : '0 12px 24px rgba(220, 253, 143, 0.3)'};
             }
 
             &:disabled {
@@ -561,14 +689,69 @@ const SwapInterface = () => {
               transform: none;
             }
           `}
-          disabled={!currentFromAmount || parseFloat(currentFromAmount) <= 0 || (swapMode === "market" && isLoadingRoutes)}
+          disabled={
+            isExecuting ||
+            !currentFromAmount ||
+            parseFloat(currentFromAmount) <= 0 ||
+            (swapMode === "market" && (isLoadingRoutes || !selectedRoute))
+          }
         >
-          {isLoadingRoutes && swapMode === "market"
-            ? "Finding best route..."
-            : !currentFromAmount || parseFloat(currentFromAmount) <= 0
-            ? "Enter an amount"
-            : swapMode === "market" ? "Swap Tokens" : "Swap Currency"}
+          {isExecuting
+            ? "⏳ Swapping..."
+            : isLoadingRoutes && swapMode === "market"
+              ? "Finding best route..."
+              : !currentFromAmount || parseFloat(currentFromAmount) <= 0
+                ? "Enter an amount"
+                : swapMode === "market" && !selectedRoute
+                  ? "No route available"
+                  : swapMode === "market" ? "Swap Tokens" : "Swap Currency"}
         </button>
+
+        {/* Swap Error */}
+        {swapError && (
+          <div
+            css={css`
+              padding: 0.75rem;
+              background: rgba(255, 77, 77, 0.1);
+              border: 1px solid rgba(255, 77, 77, 0.3);
+              border-radius: 12px;
+              color: #ff4d4d;
+              font-size: 0.875rem;
+              margin-top: 0.5rem;
+            `}
+          >
+            ❌ {swapError}
+          </div>
+        )}
+
+        {/* Swap Success */}
+        {txHash && (
+          <div
+            css={css`
+              padding: 0.75rem;
+              background: rgba(220, 253, 143, 0.1);
+              border: 1px solid rgba(220, 253, 143, 0.3);
+              border-radius: 12px;
+              color: #dcfd8f;
+              font-size: 0.875rem;
+              margin-top: 0.5rem;
+            `}
+          >
+            ✅ Swap successful!
+            <a
+              href={`https://hashscan.io/testnet/transaction/${txHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              css={css`
+                color: #dcfd8f;
+                text-decoration: underline;
+                margin-left: 0.5rem;
+              `}
+            >
+              View on HashScan
+            </a>
+          </div>
+        )}
       </div>
 
       {/* Info Cards */}
@@ -584,27 +767,27 @@ const SwapInterface = () => {
           css={css`
             background: rgba(12, 13, 16, 0.8);
             border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 16px;
-            padding: 1rem;
+            border-radius: 14px;
+            padding: 0.875rem 1rem;
           `}
         >
           <div
             css={css`
-              font-size: 0.875rem;
-              color: #a0a0a0;
-              margin-bottom: 0.5rem;
+              font-size: 0.8125rem;
+              color: #909090;
+              margin-bottom: 0.375rem;
             `}
           >
             Exchange Rate
           </div>
           <div
             css={css`
-              font-size: 1.125rem;
+              font-size: 0.9375rem;
               font-weight: 600;
               color: #fff;
             `}
           >
-            1 {getSymbol(currentFrom)} = {swapMode === "market" && selectedRoute 
+            1 {getSymbol(currentFrom)} = {swapMode === "market" && selectedRoute
               ? selectedRoute.quote.exchangeRate.toFixed(4)
               : swapMode === "market" ? "1.02" : "0.92"} {getSymbol(currentTo)}
           </div>
@@ -614,27 +797,27 @@ const SwapInterface = () => {
           css={css`
             background: rgba(12, 13, 16, 0.8);
             border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 16px;
-            padding: 1rem;
+            border-radius: 14px;
+            padding: 0.875rem 1rem;
           `}
         >
           <div
             css={css`
-              font-size: 0.875rem;
-              color: #a0a0a0;
-              margin-bottom: 0.5rem;
+              font-size: 0.8125rem;
+              color: #909090;
+              margin-bottom: 0.375rem;
             `}
           >
             Fee
           </div>
           <div
             css={css`
-              font-size: 1.125rem;
+              font-size: 0.9375rem;
               font-weight: 600;
               color: #fff;
             `}
           >
-            {swapMode === "market" && selectedRoute 
+            {swapMode === "market" && selectedRoute
               ? `${selectedRoute.quote.fee}%`
               : "0.3%"}
           </div>
