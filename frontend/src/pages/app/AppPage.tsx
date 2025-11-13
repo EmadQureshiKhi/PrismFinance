@@ -1,11 +1,19 @@
 import { css } from "@emotion/react";
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import AppLayout from "./_components/AppLayout";
 import SwapInterface from "./_components/SwapInterface";
 import VaultInterface from "./_components/VaultInterface";
+import AssetsInterface from "./_components/AssetsInterface";
+import ReservesPage from "./reserves/ReservesPage";
 import prismBg from "@/assets/Prism Finance Background Final.png";
 
 const AppPage = () => {
+    const location = useLocation();
+    
+    // Check if we're on the reserves page
+    const isReservesPage = location.pathname === "/app/reserves";
+    
     // Persist active page in localStorage
     const [activePage, setActivePage] = useState<string>(() => {
         return localStorage.getItem("prism_active_page") || "swap";
@@ -13,13 +21,22 @@ const AppPage = () => {
 
     // Save to localStorage whenever page changes
     useEffect(() => {
-        localStorage.setItem("prism_active_page", activePage);
-    }, [activePage]);
+        if (!isReservesPage) {
+            localStorage.setItem("prism_active_page", activePage);
+        }
+    }, [activePage, isReservesPage]);
 
     const renderContent = () => {
+        // If on reserves page, show reserves
+        if (isReservesPage) {
+            return <ReservesPage />;
+        }
+        
         switch (activePage) {
             case "vault":
                 return <VaultInterface />;
+            case "assets":
+                return <AssetsInterface />;
             case "swap":
             default:
                 return <SwapInterface />;

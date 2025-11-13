@@ -1,9 +1,10 @@
 import { css } from "@emotion/react";
-import { Gear, MagnifyingGlass } from "@phosphor-icons/react";
-import { useState, useEffect } from "react";
+import { Gear, MagnifyingGlass, Shield } from "@phosphor-icons/react";
+import { useState, useEffect, useRef } from "react";
 import WalletSidebar from "./WalletSidebar";
 import AccountSidebar from "./AccountSidebar";
 import { useWallet } from "@/contexts/WalletContext";
+import { useNavigate, useLocation } from "react-router-dom";
 
 interface TokenPrice {
   price: number;
@@ -28,6 +29,8 @@ interface AppHeaderProps {
 }
 
 const AppHeader = ({ onPageChange }: AppHeaderProps) => {
+  const location = useLocation();
+  
   // Sync with persisted page
   const [activeItem, setActiveItem] = useState(() => {
     return localStorage.getItem("prism_active_page") || "swap";
@@ -35,15 +38,41 @@ const AppHeader = ({ onPageChange }: AppHeaderProps) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isWalletSidebarOpen, setIsWalletSidebarOpen] = useState(false);
   const [isAccountSidebarOpen, setIsAccountSidebarOpen] = useState(false);
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const { connection } = useWallet();
+  const navigate = useNavigate();
+  const settingsRef = useRef<HTMLDivElement>(null);
   const [hbarPrice, setHbarPrice] = useState<TokenPrice>({ price: 0, change24h: 0 });
   const [packPrice, setPackPrice] = useState<TokenPrice>({ price: 0, change24h: 0 });
   const [isLoadingPrices, setIsLoadingPrices] = useState(true);
   
+  // Clear active nav item when on reserves page
+  useEffect(() => {
+    if (location.pathname === '/app/reserves') {
+      setActiveItem('');
+    }
+  }, [location.pathname]);
+  
   const handleNavClick = (itemId: string) => {
     setActiveItem(itemId);
     onPageChange(itemId);
+    // Navigate to /app to ensure we're on the main app page
+    if (window.location.pathname !== '/app') {
+      navigate('/app');
+    }
   };
+
+  // Close settings dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (settingsRef.current && !settingsRef.current.contains(event.target as Node)) {
+        setShowSettingsMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Fetch real-time prices from CoinGecko
   useEffect(() => {
@@ -316,33 +345,82 @@ const AppHeader = ({ onPageChange }: AppHeaderProps) => {
               {(localStorage.getItem('hedera_network') || 'mainnet') === 'mainnet' ? 'Mainnet' : 'Testnet'}
             </button>
 
-            <button
-              css={css`
-                margin-top: 0.125rem;
-                display: flex;
-                height: 100%;
-                align-items: center;
-                justify-content: center;
-                font-size: 0.875rem;
-                line-height: 1.25rem;
-                font-weight: 500;
-                color: rgba(144, 161, 185, 1);
-                width: 2.75rem;
-                padding: 0.5rem 0.75rem;
-                background: transparent;
-                border: none;
-                outline: 2px solid transparent;
-                outline-offset: 2px;
-                cursor: pointer;
-                transition: color 0.15s;
+            {/* Settings Dropdown */}
+            <div ref={settingsRef} css={css`position: relative;`}>
+              <button
+                onClick={() => setShowSettingsMenu(!showSettingsMenu)}
+                css={css`
+                  margin-top: 0.125rem;
+                  display: flex;
+                  height: 100%;
+                  align-items: center;
+                  justify-content: center;
+                  font-size: 0.875rem;
+                  line-height: 1.25rem;
+                  font-weight: 500;
+                  color: ${showSettingsMenu ? '#dcfd8f' : 'rgba(144, 161, 185, 1)'};
+                  width: 2.75rem;
+                  padding: 0.5rem 0.75rem;
+                  background: transparent;
+                  border: none;
+                  outline: 2px solid transparent;
+                  outline-offset: 2px;
+                  cursor: pointer;
+                  transition: color 0.15s;
 
-                &:hover {
-                  color: #dcfd8f;
-                }
-              `}
-            >
-              <Gear size={20} weight="bold" />
-            </button>
+                  &:hover {
+                    color: #dcfd8f;
+                  }
+                `}
+              >
+                <Gear size={20} weight="bold" />
+              </button>
+
+              {showSettingsMenu && (
+                <div css={css`
+                  position: absolute;
+                  top: calc(100% + 0.5rem);
+                  right: 0;
+                  background: #0c0d10;
+                  border: 1px solid rgba(255, 255, 255, 0.1);
+                  border-radius: 12px;
+                  padding: 0.5rem;
+                  min-width: 200px;
+                  z-index: 1000;
+                  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+                `}>
+                  <button
+                    onClick={() => {
+                      navigate('/app/reserves');
+                      setShowSettingsMenu(false);
+                    }}
+                    css={css`
+                      width: 100%;
+                      background: transparent;
+                      border: none;
+                      color: #ffffff;
+                      padding: 0.75rem 1rem;
+                      border-radius: 8px;
+                      cursor: pointer;
+                      transition: all 0.2s ease;
+                      display: flex;
+                      align-items: center;
+                      gap: 0.75rem;
+                      font-size: 0.875rem;
+                      text-align: left;
+                      
+                      &:hover {
+                        background: rgba(220, 253, 143, 0.1);
+                        color: #dcfd8f;
+                      }
+                    `}
+                  >
+                    <Shield size={18} weight="bold" />
+                    Proof of Reserves
+                  </button>
+                </div>
+              )}
+            </div>
 
             <button
               onClick={handleWalletButtonClick}
