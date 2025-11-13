@@ -1,0 +1,9 @@
+{
+  "network": "testnet",
+  "pythOracle": "0xeDf3471eCb704063Ef872eD1C81c144ACBA4777c",
+  "assetExchange": "0x6bCdFAbDA95Adf6B5A2fE1Ab40c84a52B2f7ED59",
+  "pythContract": "0xA2aa501b19aff244D90cc15a4Cf739D2725B5729",
+  "timestamp": "2025-11-12T12:31:40.271Z",
+  "assetExchangeDeployedAt": "2025-11-12T16:02:21.987Z",
+  "pythOracleDeployedAt": "2025-11-12T15:02:55.924Z"
+}
