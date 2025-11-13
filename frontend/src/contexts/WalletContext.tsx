@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
 import { MetaMaskService } from '@/services/wallet/MetaMaskService';
-import { HashPackService } from '@/services/wallet/HashPackService';
+import { HashConnectService } from '@/services/wallet/HashConnectService';
 import { HederaTokenService } from '@/services/wallet/HederaTokenService';
 import { WalletConnection, WalletInfo } from '@/services/wallet/types';
+import { db } from '@/services/database';
 
 interface WalletContextType {
   connection: WalletConnection | null;
@@ -27,7 +28,7 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const metamaskService = useMemo(() => new MetaMaskService(), []);
   const hashpackService = useMemo(() => {
     if (typeof window !== 'undefined') {
-      return new HashPackService();
+      return new HashConnectService();
     }
     return null;
   }, []);
@@ -81,12 +82,26 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       }
       const walletConnection = await service.connect();
 
-      // For HashPack, expose HashConnect instance globally
+      // For HashPack, expose both HashConnect and the service globally
       if (walletId === 'hashpack' && hashpackService) {
-        const hashconnect = hashpackService.getHashConnect();
-        if (hashconnect && typeof window !== 'undefined') {
-          (window as any).hashconnect = hashconnect;
+        if (typeof window !== 'undefined') {
+          (window as any).hashConnectService = hashpackService;
+
+          // Ensure pairing data is available in the global instance
+          const pairingData = hashpackService.getPairingData();
+          if (!pairingData) {
+            const saved = localStorage.getItem('hashconnect_pairing');
+            if (saved) {
+              try {
+                (hashpackService as any).pairingData = JSON.parse(saved);
+                console.log('🔁 Restored pairing data into global HashConnectService');
+              } catch (err) {
+                console.warn('⚠️ Failed to restore pairing data to global service', err);
+              }
+            }
+          }
         }
+        console.log('✅ HashConnect ready for swap execution');
       }
 
       // Initialize token service for the network
@@ -113,6 +128,20 @@ export const WalletProvider: React.FC<{ children: ReactNode }> = ({ children }) 
       // Store in localStorage for persistence
       localStorage.setItem('prism_wallet', walletId);
       localStorage.setItem('prism_account', walletConnection.account.accountId);
+
+      // Create user in database if first time connecting
+      try {
+        const evmAddress = walletConnection.account.evmAddress ||
+          (walletId === 'metamask' && typeof window !== 'undefined' && window.ethereum
+            ? await window.ethereum.request({ method: 'eth_accounts' }).then((accounts: string[]) => accounts[0])
+            : undefined);
+
+        await db.ensureUser(walletConnection.account.accountId, evmAddress);
+        console.log('✅ User registered in database');
+      } catch (dbError) {
+        console.error('⚠️ Failed to register user in database:', dbError);
+        // Don't throw - wallet connection should still work
+      }
 
       console.log('Wallet connected:', walletConnection);
       console.log('Tokens loaded:', tokens);
