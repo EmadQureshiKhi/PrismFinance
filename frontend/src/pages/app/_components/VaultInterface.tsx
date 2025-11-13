@@ -6,6 +6,10 @@ import { useWallet } from "@/contexts/WalletContext";
 import { useToast } from "@/contexts/ToastContext";
 import { TOKEN_METADATA } from "@/config/contracts";
 import TokenSelector from "./TokenSelector";
+import YieldDisplay from "./YieldDisplay";
+import PositionHistory from "./PositionHistory";
+import InsuranceFundDisplay from "./InsuranceFundDisplay";
+import HedgingStatus from "./HedgingStatus";
 
 // Import asset logos
 import pUSDLogo from "@/assets/RWA/pUSD.png";
@@ -22,7 +26,7 @@ import pGOLDLogo from "@/assets/RWA/gold.png";
 import pSPYLogo from "@/assets/RWA/s&p500.png";
 import pTBILLLogo from "@/assets/RWA/TBILL.png";
 
-// Prism tokens for vault
+// Currencies for vault (debt-based borrowing)
 const currencies = [
   { symbol: "pUSD", name: "Prism USD", logo: pUSDLogo, apy: "12.5%" },
   { symbol: "pEUR", name: "Prism EUR", logo: pEURLogo, apy: "11.8%" },
@@ -32,17 +36,7 @@ const currencies = [
   { symbol: "pAED", name: "Prism AED", logo: pAEDLogo, apy: "11.5%" },
 ];
 
-const assets = [
-  { symbol: "pBTC", name: "Prism Bitcoin", logo: pBTCLogo, apy: "8.5%" },
-  { symbol: "pETH", name: "Prism Ethereum", logo: pETHLogo, apy: "9.2%" },
-  { symbol: "pTSLA", name: "Prism Tesla", logo: pTSLALogo, apy: "7.8%" },
-  { symbol: "pAAPL", name: "Prism Apple", logo: pAAPLLogo, apy: "7.5%" },
-  { symbol: "pGOLD", name: "Prism Gold", logo: pGOLDLogo, apy: "6.5%" },
-  { symbol: "pSPY", name: "Prism S&P 500", logo: pSPYLogo, apy: "8.0%" },
-  { symbol: "pTBILL", name: "Prism T-Bill", logo: pTBILLLogo, apy: "5.5%" },
-];
-
-const allTokens = [...currencies, ...assets];
+// Note: Assets (pTSLA, pBTC, etc.) are now in the Assets page
 
 const VaultInterface = () => {
   const [vaultMode, setVaultMode] = useState<"deposit" | "withdraw">("deposit");
@@ -276,14 +270,16 @@ const VaultInterface = () => {
   };
 
   return (
-    <div
-      css={css`
-        max-width: 480px;
-        margin: 0 auto;
-        padding-top: 1rem;
-      `}
-    >
-      {/* Position Overview Card */}
+    <>
+      {/* Centered Vault Interface */}
+      <div
+        css={css`
+          max-width: 480px;
+          margin: 0 auto;
+          padding-top: 1rem;
+        `}
+      >
+        {/* Position Overview Card */}
       <div
         css={css`
           background: rgba(12, 13, 16, 0.95);
@@ -705,7 +701,6 @@ const VaultInterface = () => {
                   selectedToken={selectedToken}
                   onSelectToken={setSelectedToken}
                   currencies={currencies}
-                  assets={assets}
                 />
               </div>
 
@@ -822,7 +817,6 @@ const VaultInterface = () => {
                   selectedToken={selectedToken}
                   onSelectToken={setSelectedToken}
                   currencies={currencies}
-                  assets={assets}
                 />
               </div>
             </div>
@@ -1090,7 +1084,53 @@ const VaultInterface = () => {
           </div>
         </div>
       </div>
-    </div>
+
+      </div>
+
+      {/* Enhanced Features Section - Full Width with Grid Layout */}
+      <div
+        css={css`
+          margin-top: 3rem;
+          padding: 3rem 2rem;
+          background: linear-gradient(180deg, rgba(12, 13, 16, 0) 0%, rgba(12, 13, 16, 0.6) 10%, rgba(12, 13, 16, 0.8) 100%);
+          border-radius: 24px;
+        `}
+      >
+        <div
+          css={css`
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 1.5rem;
+
+            @media (max-width: 1100px) {
+              grid-template-columns: 1fr;
+            }
+          `}
+        >
+          <YieldDisplay 
+            userCollateral={parseFloat(userPosition?.collateral || "0")}
+            userDebt={parseFloat(userPosition?.debt || "0")}
+          />
+          
+          <PositionHistory 
+            userCollateral={parseFloat(userPosition?.collateral || "0")}
+            userDebt={parseFloat(userPosition?.debt || "0")}
+          />
+          
+          <InsuranceFundDisplay 
+            userCollateral={parseFloat(userPosition?.collateral || "0")}
+            userDebt={parseFloat(userPosition?.debt || "0")}
+          />
+          
+          <HedgingStatus 
+            userCollateral={parseFloat(userPosition?.collateral || "0")}
+            userDebt={parseFloat(userPosition?.debt || "0")}
+          />
+        </div>
+      </div>
+    </>
   );
 };
 

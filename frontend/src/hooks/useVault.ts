@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";
 import { useWallet } from "@/contexts/WalletContext";
 import { CONTRACTS } from "@/config/contracts";
+import { db } from "@/services/database";
 
 // Import ABI
 import PrismVaultV2ABI from "@/contracts/PrismVaultV2ABI.json";
@@ -215,9 +216,29 @@ export const useVault = (): VaultHook => {
         throw new Error("HashPack not supported yet, coming soon! Please use MetaMask for now.");
       }
 
-      // Refresh position
+      // Refresh position first to get updated ratio
       console.log("Refreshing position...");
       await refreshPosition();
+      
+      // Log transaction to database with updated ratio
+      if (receipt?.hash && connection.account.accountId) {
+        // Calculate the new ratio after transaction
+        const newCollateral = parseFloat(userPosition?.collateral || "0") + parseFloat(hbarAmount);
+        const newDebt = parseFloat(userPosition?.debt || "0") + parseFloat(mintAmount) * 5; // Approximate debt value
+        const newRatio = newDebt > 0 ? ((newCollateral / newDebt) * 100).toFixed(0) : undefined;
+        
+        await db.logVaultTransaction({
+          walletAddress: connection.account.accountId,
+          type: 'deposit_mint',
+          hbarAmount,
+          tokenSymbol,
+          tokenAmount: mintAmount,
+          collateralRatio: newRatio,
+          txHash: receipt.hash,
+          blockNumber: receipt.blockNumber?.toString(),
+        });
+      }
+      
       console.log("✅ Deposit and mint completed successfully!");
 
       return receipt; // Return receipt with tx hash
@@ -273,9 +294,29 @@ export const useVault = (): VaultHook => {
         throw new Error("HashPack not supported yet, coming soon! Please use MetaMask for now.");
       }
 
-      // Refresh position
+      // Refresh position first to get updated ratio
       console.log("Refreshing position...");
       await refreshPosition();
+      
+      // Log transaction to database with updated ratio
+      if (receipt?.hash && connection.account.accountId) {
+        // Calculate the new ratio after transaction
+        const newCollateral = Math.max(0, parseFloat(userPosition?.collateral || "0") - parseFloat(withdrawAmount));
+        const newDebt = Math.max(0, parseFloat(userPosition?.debt || "0") - parseFloat(burnAmount) * 5); // Approximate debt value
+        const newRatio = newDebt > 0 ? ((newCollateral / newDebt) * 100).toFixed(0) : undefined;
+        
+        await db.logVaultTransaction({
+          walletAddress: connection.account.accountId,
+          type: 'burn_withdraw',
+          hbarAmount: withdrawAmount,
+          tokenSymbol,
+          tokenAmount: burnAmount,
+          collateralRatio: newRatio,
+          txHash: receipt.hash,
+          blockNumber: receipt.blockNumber?.toString(),
+        });
+      }
+      
       console.log("✅ Burn and withdraw completed successfully!");
 
       return receipt; // Return receipt with tx hash
