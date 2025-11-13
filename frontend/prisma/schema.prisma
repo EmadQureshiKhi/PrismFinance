@@ -1,0 +1,91 @@
+// Prisma schema for Prism Finance
+// Using Supabase PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User wallet addresses
+model User {
+  id                String              @id @default(uuid())
+  walletAddress     String              @unique
+  evmAddress        String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  
+  vaultTransactions VaultTransaction[]
+  assetTransactions AssetTransaction[]
+  positions         Position[]
+  
+  @@map("users")
+}
+
+// Vault transactions (deposit, mint, burn, withdraw)
+model VaultTransaction {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  
+  type            String   // "deposit_mint" | "burn_withdraw"
+  hbarAmount      String   // Amount of HBAR deposited/withdrawn
+  tokenSymbol     String   // pUSD, pEUR, etc.
+  tokenAmount     String   // Amount of token minted/burned
+  
+  collateralRatio String?  // Collateral ratio at time of transaction
+  txHash          String   @unique
+  blockNumber     String?
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([userId])
+  @@index([txHash])
+  @@index([createdAt])
+  @@map("vault_transactions")
+}
+
+// Asset transactions (buy/sell stocks, commodities, etc.)
+model AssetTransaction {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  
+  type        String   // "buy" | "sell"
+  assetSymbol String   // pTSLA, pBTC, pGOLD, etc.
+  amount      String   // Amount of asset bought/sold
+  priceUsd    String   // Price in USD at time of transaction
+  totalCost   String   // Total cost in pUSD
+  
+  txHash      String   @unique
+  blockNumber String?
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([userId])
+  @@index([assetSymbol])
+  @@index([txHash])
+  @@index([createdAt])
+  @@map("asset_transactions")
+}
+
+// Current positions snapshot (for quick queries)
+model Position {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  
+  type            String   // "vault" | "asset"
+  symbol          String   // Token or asset symbol
+  amount          String   // Current amount held
+  averagePrice    String?  // Average purchase price (for assets)
+  
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([userId, type, symbol])
+  @@index([userId])
+  @@map("positions")
+}
