@@ -7,6 +7,31 @@ import { db } from "@/services/database";
 // Import ABI
 import PrismVaultV2ABI from "@/contracts/PrismVaultV2ABI.json";
 
+// Helper function to clean error messages
+const cleanErrorMessage = (error: any): string => {
+  if (!error) return "Transaction failed";
+  
+  const message = error.message || error.toString();
+  
+  if (message.includes("user rejected")) {
+    return "Transaction was cancelled";
+  } else if (message.includes("insufficient funds")) {
+    return "Insufficient HBAR balance";
+  } else if (message.includes("Insufficient collateral")) {
+    return "Insufficient collateral ratio";
+  } else if (message.includes("execution reverted")) {
+    return "Transaction failed - check your inputs";
+  } else if (message.includes("Slippage exceeded")) {
+    return "Price changed too much, try again";
+  } else {
+    // Extract just the first part before technical details
+    const shortMessage = message.split("(")[0].split("{")[0].trim();
+    return shortMessage.length > 80 
+      ? shortMessage.substring(0, 80) + "..." 
+      : shortMessage;
+  }
+};
+
 interface UserPosition {
   collateral: string;
   debt: string;
@@ -55,6 +80,16 @@ export const useVault = (): VaultHook => {
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Auto-dismiss error after 5 seconds
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => {
+        setError(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
 
   // Get provider and signer
   const getProvider = useCallback(() => {
@@ -153,10 +188,10 @@ export const useVault = (): VaultHook => {
       }
 
       const newPosition = {
-        collateral: ethers.formatEther(position.collateral),
-        debt: ethers.formatEther(position.debtValue),
-        ratio: position.ratio.toString(),
-        healthy: position.healthy,
+        collateral: ethers.formatEther(position.collateral || 0),
+        debt: ethers.formatEther(position.debt || 0),
+        ratio: position.ratio?.toString() || "0",
+        healthy: position.healthy || false,
         positions,
       };
 
