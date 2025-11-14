@@ -1,13 +1,13 @@
 // Contract addresses and configuration
 export const CONTRACTS = {
   network: "testnet",
-  vault: "0x16b53f394F945F8753a5F6d94014FF08fd9CC3CB",
-  oracle: "0xd1394560fe24826918b55f041E0751b3f673b397",
-  priceOracle: "0x739dD942065280A743DdfeF0De01A7B5FeD0f69B",
+  vault: "0xD2852dEd28F7DaD7BaeDacD6C16EdaaC2542820A",
+  oracle: "0xb1C70B19082d470829e88D784bA05C105300047a",
+  priceOracle: "0x1050eb5E510E6d9D747fEeD6E32B76D4061896F4",
   // Asset Exchange contracts (ownership-based)
-  pythOracle: "0xeDf3471eCb704063Ef872eD1C81c144ACBA4777c",
-  assetExchange: "0x6bCdFAbDA95Adf6B5A2fE1Ab40c84a52B2f7ED59",
-  hcsTopic: "0.0.7232509",
+  pythOracle: "0x1050eb5E510E6d9D747fEeD6E32B76D4061896F4",
+  assetExchange: "0x2b5a0C2F1004fb9a9039bee910694C0a57e30a59",
+  hcsTopic: "0.0.7255836",
   tokens: {
     pUSD: "0.0.7228971",
     pEUR: "0.0.7228972",

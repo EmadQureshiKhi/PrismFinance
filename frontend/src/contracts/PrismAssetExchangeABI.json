@@ -208,8 +208,65 @@
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "depositor",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "hbarAmount",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "string[]",
+        "name": "assets",
+        "type": "string[]"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256[]",
+        "name": "amounts",
+        "type": "uint256[]"
+      }
+    ],
+    "name": "ReservesAdded",
+    "type": "event"
+  },
+  {
     "inputs": [],
     "name": "FEE_DENOMINATOR",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "TINYBARS_PER_HBAR",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "WEI_PER_TINYBAR",
     "outputs": [
       {
         "internalType": "uint256",
@@ -385,12 +442,99 @@
         "type": "string"
       }
     ],
+    "name": "fundAssetReserves",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "fundReserves",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getAllAssetReserves",
+    "outputs": [
+      {
+        "internalType": "string[]",
+        "name": "symbols",
+        "type": "string[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "reserves",
+        "type": "uint256[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "supplies",
+        "type": "uint256[]"
+      },
+      {
+        "internalType": "uint256[]",
+        "name": "ratios",
+        "type": "uint256[]"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "tokenSymbol",
+        "type": "string"
+      }
+    ],
     "name": "getAssetPriceInHbar",
     "outputs": [
       {
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "tokenSymbol",
+        "type": "string"
+      }
+    ],
+    "name": "getAssetReserveInfo",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "hbarReserve",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "supply",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "marketValue",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "reserveRatio",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "healthy",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -449,6 +593,34 @@
         "internalType": "uint256",
         "name": "fee",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getTotalAssetReserves",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "totalHbarReserves",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalMarketValue",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "overallRatio",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "healthy",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
