@@ -27,18 +27,60 @@ interface AssetExchangeHook {
   refreshBalances: () => Promise<void>;
 }
 
+// Helper function to clean error messages
+const cleanErrorMessage = (error: any): string => {
+  if (!error) return "Transaction failed";
+  
+  const message = error.message || error.toString();
+  
+  if (message.includes("user rejected")) {
+    return "Transaction was cancelled";
+  } else if (message.includes("insufficient funds")) {
+    return "Insufficient HBAR balance";
+  } else if (message.includes("execution reverted")) {
+    return "Transaction failed - asset may not be available";
+  } else if (message.includes("Insufficient balance")) {
+    return "Insufficient token balance";
+  } else if (message.includes("Slippage exceeded")) {
+    return "Price changed too much, try again";
+  } else {
+    // Extract just the first part before technical details
+    const shortMessage = message.split("(")[0].split("{")[0].trim();
+    return shortMessage.length > 80 
+      ? shortMessage.substring(0, 80) + "..." 
+      : shortMessage;
+  }
+};
+
 export const useAssetExchange = (): AssetExchangeHook => {
   const { connection } = useWallet();
 
   const [balances, setBalances] = useState<AssetBalance[]>(() => {
-    // Clear old cached balances since we deployed a new contract
+    // Load cached balances immediately for instant display
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('prism_asset_balances');
+      const cached = localStorage.getItem('prism_asset_balances');
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch (e) {
+          console.error("Failed to parse cached balances:", e);
+        }
+      }
     }
     return [];
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Auto-dismiss error after 5 seconds
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => {
+        setError(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
 
   // Get provider and signer
   const getProvider = useCallback(() => {
@@ -123,15 +165,15 @@ export const useAssetExchange = (): AssetExchangeHook => {
       for (const symbol of ASSETS) {
         try {
           const balance = await assetExchange.balances(userAddress, symbol);
-          // On Hedera, balances are stored in 8 decimals (tinybars precision)
-          const balanceFormatted = ethers.formatUnits(balance, 8);
+          // Contract stores balances in wei (18 decimals)
+          const balanceFormatted = ethers.formatEther(balance);
 
           if (parseFloat(balanceFormatted) > 0) {
             // Get current value in HBAR
             try {
               const [hbarOut] = await assetExchange.getQuoteSell(symbol, balance);
-              // On Hedera, HBAR amounts are in tinybars (8 decimals)
-              const valueHBAR = ethers.formatUnits(hbarOut, 8);
+              // HBAR amounts are also in wei (18 decimals)
+              const valueHBAR = ethers.formatEther(hbarOut);
 
               newBalances.push({
                 symbol,
@@ -182,6 +224,7 @@ export const useAssetExchange = (): AssetExchangeHook => {
       setIsLoading(true);
       setError(null);
 
+      // Contract expects wei (18 decimals)
       const hbarWei = ethers.parseEther(hbarAmount);
 
       // Handle minTokensOut - it might have too many decimals for parseEther
@@ -258,7 +301,7 @@ export const useAssetExchange = (): AssetExchangeHook => {
       }
     } catch (err: any) {
       console.error("Error in buyAsset:", err);
-      setError(err.message || "Transaction failed");
+      setError(cleanErrorMessage(err));
       throw err;
     } finally {
       setIsLoading(false);
@@ -285,21 +328,21 @@ export const useAssetExchange = (): AssetExchangeHook => {
           throw new Error("Could not determine user address");
         }
 
-        // On Hedera, token amounts are in 8 decimals
-        const tokenUnits = ethers.parseUnits(tokenAmount, 8);
+        // Contract expects wei (18 decimals)
+        const tokenWei = ethers.parseEther(tokenAmount);
 
-        // On Hedera, HBAR amounts are in tinybars (8 decimals)
-        let minHbarTinybars: bigint;
+        // minHbarOut is also in wei (18 decimals)
+        let minHbarWei: bigint;
         try {
-          minHbarTinybars = ethers.parseUnits(minHbarOut, 8);
+          minHbarWei = ethers.parseEther(minHbarOut);
         } catch (e) {
           const minHbarNum = parseFloat(minHbarOut);
-          minHbarTinybars = isNaN(minHbarNum) || minHbarNum <= 0 ? BigInt(0) : BigInt(Math.floor(minHbarNum * 1e8));
+          minHbarWei = isNaN(minHbarNum) || minHbarNum <= 0 ? BigInt(0) : BigInt(Math.floor(minHbarNum * 1e18));
         }
 
         console.log("Selling", tokenAmount, tokenSymbol);
 
-        const tx = await assetExchange.sellAsset(tokenSymbol, tokenUnits, minHbarTinybars, {
+        const tx = await assetExchange.sellAsset(tokenSymbol, tokenWei, minHbarWei, {
           gasLimit: 500000
         });
         console.log("Transaction sent:", tx.hash);
@@ -342,7 +385,7 @@ export const useAssetExchange = (): AssetExchangeHook => {
       }
     } catch (err: any) {
       console.error("Error in sellAsset:", err);
-      setError(err.message || "Transaction failed");
+      setError(cleanErrorMessage(err));
       throw err;
     } finally {
       setIsLoading(false);
@@ -358,15 +401,15 @@ export const useAssetExchange = (): AssetExchangeHook => {
 
     try {
       const assetExchange = await getAssetExchangeContract(false);
-      // On Hedera, HBAR amounts are in tinybars (8 decimals)
-      const hbarTinybars = ethers.parseUnits(hbarAmount, 8);
+      // Contract expects wei (18 decimals)
+      const hbarWei = ethers.parseEther(hbarAmount);
 
-      const [tokensOut, fee] = await assetExchange.getQuoteBuy(tokenSymbol, hbarTinybars);
+      const [tokensOut, fee] = await assetExchange.getQuoteBuy(tokenSymbol, hbarWei);
 
-      // Tokens are in 8 decimals, fee is in tinybars (8 decimals)
+      // Contract returns wei (18 decimals)
       return {
-        tokensOut: ethers.formatUnits(tokensOut, 8),
-        fee: ethers.formatUnits(fee, 8)
+        tokensOut: ethers.formatEther(tokensOut),
+        fee: ethers.formatEther(fee)
       };
     } catch (err) {
       console.error("Error getting buy quote:", err);
@@ -383,15 +426,15 @@ export const useAssetExchange = (): AssetExchangeHook => {
 
     try {
       const assetExchange = await getAssetExchangeContract(false);
-      // On Hedera, token amounts are in 8 decimals
-      const tokenUnits = ethers.parseUnits(tokenAmount, 8);
+      // Contract expects wei (18 decimals)
+      const tokenWei = ethers.parseEther(tokenAmount);
 
-      const [hbarOut, fee] = await assetExchange.getQuoteSell(tokenSymbol, tokenUnits);
+      const [hbarOut, fee] = await assetExchange.getQuoteSell(tokenSymbol, tokenWei);
 
-      // On Hedera, HBAR amounts are in tinybars (8 decimals), not wei (18 decimals)
+      // Contract returns wei (18 decimals)
       return {
-        hbarOut: ethers.formatUnits(hbarOut, 8),
-        fee: ethers.formatUnits(fee, 8)
+        hbarOut: ethers.formatEther(hbarOut),
+        fee: ethers.formatEther(fee)
       };
     } catch (err) {
       console.error("Error getting sell quote:", err);
@@ -399,11 +442,12 @@ export const useAssetExchange = (): AssetExchangeHook => {
     }
   }, [connection, getAssetExchangeContract]);
 
-  // Auto-refresh balances when wallet connects (in background)
+  // Auto-refresh balances when wallet connects
   useEffect(() => {
     if (connection) {
-      // Refresh in background without showing loading spinner
-      refreshBalances(false);
+      // Show loading only if we don't have cached balances
+      const hasCachedBalances = balances.length > 0;
+      refreshBalances(!hasCachedBalances);
     }
   }, [connection, refreshBalances]);
 

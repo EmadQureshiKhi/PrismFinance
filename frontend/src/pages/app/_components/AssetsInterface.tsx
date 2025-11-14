@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
 import { css } from "@emotion/react";
+import { ethers } from "ethers";
 import { useAssetExchange } from "@/hooks/useAssetExchange";
 import { useToast } from "@/contexts/ToastContext";
+import { useWallet } from "@/contexts/WalletContext";
 import TokenSelector from "./TokenSelector";
 
 // Import asset logos
@@ -27,6 +29,7 @@ const assets = [
 export default function AssetsInterface() {
   console.log("AssetsInterface rendering");
 
+  const { connection } = useWallet();
   const {
     balances,
     isLoading,
@@ -42,6 +45,32 @@ export default function AssetsInterface() {
 
   console.log("AssetsInterface state:", { balances, isLoading, error });
 
+  // Fetch HBAR balance
+  useEffect(() => {
+    const fetchHbarBalance = async () => {
+      if (!connection) {
+        setHbarBalance("0");
+        return;
+      }
+
+      try {
+        // For MetaMask, use window.ethereum
+        if (connection.wallet.id === 'metamask' && typeof window !== 'undefined' && (window as any).ethereum) {
+          const provider = new ethers.BrowserProvider((window as any).ethereum);
+          const signer = await provider.getSigner();
+          const address = await signer.getAddress();
+          const balance = await provider.getBalance(address);
+          setHbarBalance(ethers.formatEther(balance));
+        }
+      } catch (err) {
+        console.error("Error fetching HBAR balance:", err);
+        setHbarBalance("0");
+      }
+    };
+
+    fetchHbarBalance();
+  }, [connection]);
+
   // Form state
   const [selectedAsset, setSelectedAsset] = useState(assets[0]);
   const [isBuying, setIsBuying] = useState(true);
@@ -49,6 +78,8 @@ export default function AssetsInterface() {
   const [tokenAmount, setTokenAmount] = useState("");
   const [quote, setQuote] = useState<{ output: string; fee: string } | null>(null);
   const [isGettingQuote, setIsGettingQuote] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [hbarBalance, setHbarBalance] = useState<string>("0");
 
   // Get quote when amounts change
   useEffect(() => {
@@ -83,9 +114,13 @@ export default function AssetsInterface() {
   // Handle transaction
   const handleTransaction = async () => {
     try {
+      // Trigger shimmer animation
+      setIsRefreshing(true);
+
       if (isBuying) {
         if (!hbarAmount || parseFloat(hbarAmount) <= 0) {
           showError("Invalid Amount", "Please enter a valid HBAR amount");
+          setIsRefreshing(false);
           return;
         }
 
@@ -97,10 +132,10 @@ export default function AssetsInterface() {
         const tokensReceived = quote ? parseFloat(quote.output).toFixed(6) : "N/A";
         const fee = quote ? parseFloat(quote.fee).toFixed(4) : "N/A";
         const txHash = receipt.hash || receipt.transactionHash;
-        
+
         console.log("Transaction receipt:", receipt);
         console.log("Transaction hash:", txHash);
-        
+
         showSuccess(
           `Successfully bought ${tokensReceived} ${selectedAsset.symbol}`,
           `Spent ${hbarAmount} HBAR • Fee: ${fee} HBAR`,
@@ -115,6 +150,7 @@ export default function AssetsInterface() {
       } else {
         if (!tokenAmount || parseFloat(tokenAmount) <= 0) {
           showError("Invalid Amount", "Please enter a valid token amount");
+          setIsRefreshing(false);
           return;
         }
 
@@ -125,7 +161,7 @@ export default function AssetsInterface() {
         // Build detailed success message
         const hbarReceived = quote ? parseFloat(quote.output).toFixed(4) : "N/A";
         const fee = quote ? parseFloat(quote.fee).toFixed(4) : "N/A";
-        
+
         showSuccess(
           `Successfully sold ${tokenAmount} ${selectedAsset.symbol}`,
           `Received ${hbarReceived} HBAR • Fee: ${fee} HBAR`,
@@ -137,9 +173,38 @@ export default function AssetsInterface() {
         setTokenAmount("");
         setQuote(null);
       }
+
+      // Keep shimmer animation for a bit longer to show the refresh
+      setTimeout(() => setIsRefreshing(false), 2000);
+
     } catch (err: any) {
       console.error("Transaction failed:", err);
-      showError("Transaction failed", err.message);
+
+      // Extract user-friendly error message
+      let errorMessage = "An error occurred during the transaction";
+
+      if (err.message) {
+        if (err.message.includes("user rejected")) {
+          errorMessage = "Transaction was cancelled";
+        } else if (err.message.includes("insufficient funds")) {
+          errorMessage = "Insufficient HBAR balance";
+        } else if (err.message.includes("execution reverted")) {
+          errorMessage = "Transaction failed - asset may not be available";
+        } else if (err.message.includes("Insufficient balance")) {
+          errorMessage = "Insufficient token balance";
+        } else if (err.message.includes("Slippage exceeded")) {
+          errorMessage = "Price changed too much, try again";
+        } else {
+          // For other errors, show a shortened version
+          const shortMessage = err.message.split("(")[0].trim();
+          errorMessage = shortMessage.length > 60
+            ? shortMessage.substring(0, 60) + "..."
+            : shortMessage;
+        }
+      }
+
+      showError("Transaction Failed", errorMessage);
+      setIsRefreshing(false);
     }
   };
 
@@ -290,6 +355,27 @@ export default function AssetsInterface() {
                   `}>
                     HBAR to Spend
                   </span>
+                  <button
+                    onClick={() => {
+                      // Leave a small amount for gas fees (0.1 HBAR)
+                      const maxAmount = Math.max(0, parseFloat(hbarBalance) - 0.1);
+                      setHbarAmount(maxAmount.toFixed(4));
+                    }}
+                    css={css`
+                      font-size: 0.6875rem;
+                      color: #dcfd8f;
+                      background: transparent;
+                      border: none;
+                      cursor: pointer;
+                      font-weight: 600;
+
+                      &:hover {
+                        text-decoration: underline;
+                      }
+                    `}
+                  >
+                    MAX
+                  </button>
                 </div>
 
                 <div css={css`
@@ -503,6 +589,7 @@ export default function AssetsInterface() {
               font-size: 0.9375rem;
               transition: all 0.15s;
               border: none;
+              margin-top: ${quote ? '0' : '3rem'};
               cursor: ${isLoading || isGettingQuote || !quote ? "not-allowed" : "pointer"};
               background: ${isLoading || isGettingQuote || !quote
                 ? "rgba(255, 255, 255, 0.1)"
@@ -550,7 +637,26 @@ export default function AssetsInterface() {
           border: 1px solid rgba(255, 255, 255, 0.05);
           border-radius: 24px;
           padding: 1.25rem;
+          position: relative;
+          overflow: hidden;
         `}>
+          {isRefreshing && (
+            <div css={css`
+              position: absolute;
+              top: 0;
+              left: 0;
+              right: 0;
+              height: 2px;
+              background: linear-gradient(90deg, transparent, #dcfd8f, transparent);
+              animation: shimmer 1.5s infinite;
+              z-index: 10;
+              
+              @keyframes shimmer {
+                0% { transform: translateX(-100%); }
+                100% { transform: translateX(100%); }
+              }
+            `} />
+          )}
           <div css={css`
             display: flex;
             align-items: center;
@@ -566,7 +672,11 @@ export default function AssetsInterface() {
               margin: 0;
             `}>Your Portfolio</h2>
             <button
-              onClick={refreshBalances}
+              onClick={async () => {
+                setIsRefreshing(true);
+                await refreshBalances();
+                setTimeout(() => setIsRefreshing(false), 1500);
+              }}
               disabled={isLoading}
               css={css`
                 color: #dcfd8f;
@@ -607,76 +717,111 @@ export default function AssetsInterface() {
               display: flex;
               flex-direction: column;
               gap: 0.625rem;
+              max-height: ${balances.length > 4 ? '320px' : 'auto'};
+              overflow-y: ${balances.length > 4 ? 'auto' : 'visible'};
+              padding-right: ${balances.length > 4 ? '0.5rem' : '0'};
+              
+              /* Custom scrollbar - hidden by default */
+              &::-webkit-scrollbar {
+                width: 8px;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+              }
+              
+              &::-webkit-scrollbar-track {
+                background: transparent;
+                border-radius: 10px;
+              }
+              
+              &::-webkit-scrollbar-thumb {
+                background: transparent;
+                border-radius: 10px;
+              }
+              
+              /* Show scrollbar on hover */
+              &:hover::-webkit-scrollbar-track {
+                background: rgba(0, 0, 0, 0.3);
+              }
+              
+              &:hover::-webkit-scrollbar-thumb {
+                background: linear-gradient(180deg, #dcfd8f 0%, #a8d45f 100%);
+                
+                &:hover {
+                  background: linear-gradient(180deg, #e8ffaa 0%, #b8e46f 100%);
+                }
+              }
             `}>
-              {balances.map((balance) => {
-                const assetInfo = assets.find(a => a.symbol === balance.symbol);
+              {balances
+                .sort((a, b) => parseFloat(b.valueHBAR) - parseFloat(a.valueHBAR))
+                .map((balance) => {
+                  const assetInfo = assets.find(a => a.symbol === balance.symbol);
 
-                return (
-                  <div key={balance.symbol} css={css`
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    padding: 0.75rem;
-                    background: rgba(0, 0, 0, 0.3);
-                    border: 1px solid rgba(255, 255, 255, 0.08);
-                    border-radius: 10px;
-                    transition: all 0.15s;
-                    
-                    &:hover {
-                      background: rgba(0, 0, 0, 0.4);
-                      border-color: rgba(220, 253, 143, 0.2);
-                    }
-                  `}>
-                    <div css={css`
+                  return (
+                    <div key={balance.symbol} css={css`
                       display: flex;
                       align-items: center;
-                      gap: 0.625rem;
+                      justify-content: space-between;
+                      padding: 0.75rem;
+                      background: rgba(0, 0, 0, 0.3);
+                      border: 1px solid rgba(255, 255, 255, 0.08);
+                      border-radius: 10px;
+                      transition: all 0.15s;
+                      
+                      &:hover {
+                        background: rgba(0, 0, 0, 0.4);
+                        border-color: rgba(220, 253, 143, 0.2);
+                      }
                     `}>
-                      {assetInfo && (
-                        <img
-                          src={assetInfo.logo}
-                          alt={assetInfo.name}
-                          css={css`
-                            width: 2rem;
-                            height: 2rem;
-                            border-radius: 9999px;
-                          `}
-                        />
-                      )}
-                      <div>
+                      <div css={css`
+                        display: flex;
+                        align-items: center;
+                        gap: 0.625rem;
+                      `}>
+                        {assetInfo && (
+                          <img
+                            src={assetInfo.logo}
+                            alt={assetInfo.name}
+                            css={css`
+                              width: 2rem;
+                              height: 2rem;
+                              border-radius: 9999px;
+                            `}
+                          />
+                        )}
+                        <div>
+                          <div css={css`
+                            color: #ffffff;
+                            font-weight: 600;
+                            font-size: 0.875rem;
+                          `}>{balance.symbol}</div>
+                          <div css={css`
+                            color: #a0a0a0;
+                            font-size: 0.6875rem;
+                          `}>
+                            {assetInfo?.name || balance.symbol}
+                          </div>
+                        </div>
+                      </div>
+                      <div css={css`
+                        text-align: right;
+                      `}>
                         <div css={css`
                           color: #ffffff;
                           font-weight: 600;
                           font-size: 0.875rem;
-                        `}>{balance.symbol}</div>
+                        `}>
+                          {parseFloat(balance.balance).toFixed(4)}
+                        </div>
                         <div css={css`
                           color: #a0a0a0;
                           font-size: 0.6875rem;
                         `}>
-                          {assetInfo?.name || balance.symbol}
+                          ≈ {parseFloat(balance.valueHBAR).toFixed(2)} HBAR
                         </div>
                       </div>
                     </div>
-                    <div css={css`
-                      text-align: right;
-                    `}>
-                      <div css={css`
-                        color: #ffffff;
-                        font-weight: 600;
-                        font-size: 0.875rem;
-                      `}>
-                        {parseFloat(balance.balance).toFixed(4)}
-                      </div>
-                      <div css={css`
-                        color: #a0a0a0;
-                        font-size: 0.6875rem;
-                      `}>
-                        ≈ {parseFloat(balance.valueHBAR).toFixed(2)} HBAR
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
             </div>
           )}
         </div>
