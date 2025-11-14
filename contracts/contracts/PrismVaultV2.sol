@@ -27,6 +27,24 @@ contract PrismVaultV2 {
     // Collateral per user (in wei)
     mapping(address => uint256) public userCollateral;
     
+    // ============ Yield System State Variables ============
+    
+    // Yield tracking per user
+    mapping(address => uint256) public lastYieldClaim;     // Last claim timestamp
+    mapping(address => uint256) public accruedYield;       // Accrued yield in wei
+    mapping(address => uint256) public yieldStartTime;     // When user started earning yield
+    
+    // Yield reserve and rates
+    uint256 public yieldReserve;                           // HBAR available for yield (in wei)
+    uint256 public constant BASE_APY = 1000;               // 10% APY (basis points)
+    uint256 public constant LST_BONUS_APY = 300;           // 3% bonus APY (basis points)
+    uint256 public constant MAX_APY = 1500;                // 15% max APY (basis points)
+    uint256 public constant SECONDS_PER_YEAR = 31536000;   // 365 days
+    
+    // Yield statistics
+    uint256 public totalYieldPaid;                         // Total yield paid out (in wei)
+    uint256 public totalYieldAccrued;                      // Total yield accrued (in wei)
+    
     // Constants
     uint256 public constant MIN_COLLATERAL_RATIO = 150; // 150%
     uint256 public constant LIQUIDATION_RATIO = 130; // 130%
@@ -115,10 +133,10 @@ contract PrismVaultV2 {
         positions[msg.sender][token] += amount;
         totalMinted[token] += amount;
         
-        // Note: Oracle tracks collateral, vault tracks synthetic value
-        // No need to update oracle for every mint/burn
-        
         emit Mint(msg.sender, token, amount);
+        
+        // Update oracle with new total debt
+        _updateOracleDebt();
     }
     
     /**
@@ -142,6 +160,9 @@ contract PrismVaultV2 {
         positions[msg.sender][token] += mintAmount;
         totalMinted[token] += mintAmount;
         emit Mint(msg.sender, token, mintAmount);
+        
+        // Step 3: Update oracle with new total debt
+        _updateOracleDebt();
     }
     
     /**
@@ -153,9 +174,10 @@ contract PrismVaultV2 {
         positions[msg.sender][token] -= amount;
         totalMinted[token] -= amount;
         
-        // Note: Oracle tracks collateral, vault tracks synthetic value
-        
         emit Burn(msg.sender, token, amount);
+        
+        // Update oracle with new total debt
+        _updateOracleDebt();
     }
     
     /**
@@ -184,6 +206,9 @@ contract PrismVaultV2 {
             oracle.withdrawForVault(payable(msg.sender), tinybars);
             emit Withdraw(msg.sender, withdrawAmount);
         }
+        
+        // Step 3: Update oracle with new total debt
+        _updateOracleDebt();
     }
     
     /**
@@ -265,48 +290,81 @@ contract PrismVaultV2 {
     }
     
     /**
-     * @notice Get user position info
+     * @notice Get comprehensive user position data
+     * @param user User address
+     * @return collateral User's HBAR collateral (in wei)
+     * @return debt User's total debt value in HBAR (in wei)
+     * @return ratio Collateral ratio (percentage, 150 = 150%)
+     * @return healthy Whether position is healthy
      */
     function getUserPosition(address user) external view returns (
         uint256 collateral,
-        uint256 debtValue,
+        uint256 debt,
         uint256 ratio,
         bool healthy
     ) {
         collateral = userCollateral[user];
-        debtValue = getUserDebtValue(user);
+        debt = getUserDebtValue(user);
         ratio = _getUserCollateralRatio(user);
         healthy = ratio >= MIN_COLLATERAL_RATIO;
-        
-        return (collateral, debtValue, ratio, healthy);
     }
     
     /**
-     * @notice Get maximum amount user can mint for a given token
+     * @notice Get maximum mintable amount for a token
      * @param user User address
-     * @param tokenSymbol Token symbol (e.g., "pUSD")
-     * @return maxAmount Maximum mintable amount (in wei, 18 decimals)
+     * @param token Token symbol (e.g., "pUSD")
+     * @return maxMintable Maximum amount user can mint (in wei)
      */
-    function getMaxMintable(address user, string memory tokenSymbol) external view returns (uint256) {
+    function getMaxMintable(address user, string memory token) external view returns (uint256) {
         uint256 collateral = userCollateral[user];
+        if (collateral == 0) return 0;
+        
+        // Calculate max debt in HBAR (150% collateral ratio)
+        // maxDebt = collateral / 1.5 = collateral * 100 / 150
+        uint256 maxDebtInHbar = (collateral * 100) / MIN_COLLATERAL_RATIO;
+        
+        // Get current debt
         uint256 currentDebt = getUserDebtValue(user);
         
-        // Max debt = collateral / (MIN_COLLATERAL_RATIO / 100)
-        // e.g., 100 HBAR / 1.5 = 66.67 HBAR worth of debt
-        uint256 maxTotalDebt = (collateral * 100) / MIN_COLLATERAL_RATIO;
+        // Available debt capacity
+        if (maxDebtInHbar <= currentDebt) return 0;
+        uint256 availableDebt = maxDebtInHbar - currentDebt;
         
-        if (maxTotalDebt <= currentDebt) return 0;
-        
-        uint256 availableDebtInHbar = maxTotalDebt - currentDebt;
-        
-        // Convert available HBAR debt to token amount
-        // Remove 'p' prefix from tokenSymbol
-        string memory assetSymbol = _removePPrefix(tokenSymbol);
+        // Convert to token amount
         uint256 hbarPrice = priceOracle.getPrice("HBAR");
-        uint256 assetPrice = priceOracle.getPrice(assetSymbol);
+        uint256 tokenPrice = priceOracle.getPrice(_removePPrefix(token));
         
-        // availableDebtInHbar * hbarPrice / assetPrice
-        return (availableDebtInHbar * hbarPrice) / assetPrice;
+        // availableDebt is in HBAR (wei), convert to token amount
+        // (availableDebt * hbarPrice) / tokenPrice
+        // Both prices are 8 decimals, result is 18 decimals (wei)
+        uint256 maxMintable = (availableDebt * hbarPrice) / tokenPrice;
+        
+        return maxMintable;
+    }
+    
+    /**
+     * @notice Get all user positions for all tokens
+     * @param user User address
+     * @return tokens Array of token symbols
+     * @return amounts Array of position amounts (in wei)
+     */
+    function getUserPositions(address user) external view returns (
+        string[] memory tokens,
+        uint256[] memory amounts
+    ) {
+        // Define all supported tokens
+        string[13] memory allTokens = [
+            "pUSD", "pEUR", "pGBP", "pJPY", "pHKD", "pAED",
+            "pTSLA", "pAAPL", "pTBILL", "pGOLD", "pSPY", "pBTC", "pETH"
+        ];
+        
+        tokens = new string[](13);
+        amounts = new uint256[](13);
+        
+        for (uint256 i = 0; i < 13; i++) {
+            tokens[i] = allTokens[i];
+            amounts[i] = positions[user][allTokens[i]];
+        }
     }
     
     /**
@@ -379,29 +437,35 @@ contract PrismVaultV2 {
         return newRatio >= MIN_COLLATERAL_RATIO;
     }
     
-    function _updateOracleSyntheticValue() internal {
-        // Calculate total synthetic value across all tokens (in wei)
-        uint256 totalValue = 0;
+    /**
+     * @notice Update oracle with current total debt
+     * @dev Called after every mint/burn operation
+     * Oracle expects debt in USD cents (8 decimals)
+     */
+    function _updateOracleDebt() internal {
+        // Calculate total debt across all tokens in USD (8 decimals)
+        uint256 totalDebtInUsd = 0;
         
-        totalValue += totalMinted["pUSD"];
-        totalValue += totalMinted["pEUR"];
-        totalValue += totalMinted["pGBP"];
-        totalValue += totalMinted["pJPY"];
-        totalValue += totalMinted["pHKD"];
-        totalValue += totalMinted["pAED"];
-        totalValue += totalMinted["pTSLA"];
-        totalValue += totalMinted["pAAPL"];
-        totalValue += totalMinted["pTBILL"];
-        totalValue += totalMinted["pGOLD"];
-        totalValue += totalMinted["pSPY"];
-        totalValue += totalMinted["pBTC"];
-        totalValue += totalMinted["pETH"];
+        string[13] memory allTokens = [
+            "pUSD", "pEUR", "pGBP", "pJPY", "pHKD", "pAED",
+            "pTSLA", "pAAPL", "pTBILL", "pGOLD", "pSPY", "pBTC", "pETH"
+        ];
         
-        // Convert to tinybars for oracle
-        uint256 tinybars = totalValue / WEI_PER_TINYBAR;
+        for (uint256 i = 0; i < 13; i++) {
+            uint256 supply = totalMinted[allTokens[i]];
+            if (supply > 0) {
+                // Get token price in USD (8 decimals)
+                string memory assetSymbol = _removePPrefix(allTokens[i]);
+                uint256 tokenPrice = priceOracle.getPrice(assetSymbol);
+                
+                // Convert token amount (18 decimals) to USD value (8 decimals)
+                // supply * tokenPrice / 1e18 = USD value in 8 decimals
+                totalDebtInUsd += (supply * tokenPrice) / 1e18;
+            }
+        }
         
-        // Update oracle (oracle expects tinybars)
-        oracle.updateSyntheticValue(tinybars);
+        // Update oracle (totalDebtInUsd is in 8 decimals - USD cents)
+        oracle.updateSyntheticValue(totalDebtInUsd);
     }
     
     /**

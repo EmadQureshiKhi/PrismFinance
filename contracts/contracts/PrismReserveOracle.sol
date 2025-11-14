@@ -28,11 +28,13 @@ contract PrismReserveOracle {
     // Events
     event CollateralDeposited(address indexed depositor, uint256 amount);
     event CollateralWithdrawn(address indexed recipient, uint256 amount);
+    event SyntheticValueUpdated(uint256 oldValue, uint256 newValue, address indexed updater);
     event AttestationPublished(bytes32 merkleRoot, uint256 timestamp);
     event AttestorAdded(address indexed attestor);
     event AttestorRemoved(address indexed attestor);
     event AdminTransferInitiated(address indexed newAdmin);
     event AdminTransferred(address indexed oldAdmin, address indexed newAdmin);
+    event VaultUpdated(address indexed oldVault, address indexed newVault);
     
     // Modifiers
     modifier onlyAdmin() {
@@ -97,14 +99,32 @@ contract PrismReserveOracle {
      * @notice Set vault address (admin only)
      */
     function setVault(address _vault) external onlyAdmin {
+        require(_vault != address(0), "Invalid vault address");
+        address oldVault = vault;
         vault = _vault;
+        emit VaultUpdated(oldVault, _vault);
     }
     
     /**
-     * @notice Update total synthetic value (called by vault contracts)
+     * @notice Update total synthetic value (called by vault)
+     * @param newValue New total debt in USD cents (8 decimals)
+     * @dev This is called by the vault after every mint/burn operation
      */
-    function updateSyntheticValue(uint256 newValue) external onlyAdmin {
+    function updateSyntheticValue(uint256 newValue) external onlyVault {
+        uint256 oldValue = totalSyntheticValue;
         totalSyntheticValue = newValue;
+        emit SyntheticValueUpdated(oldValue, newValue, msg.sender);
+    }
+    
+    /**
+     * @notice Admin can also update synthetic value manually if needed
+     * @param newValue New total debt in USD cents (8 decimals)
+     * @dev Use this only for emergency corrections or initial setup
+     */
+    function adminUpdateSyntheticValue(uint256 newValue) external onlyAdmin {
+        uint256 oldValue = totalSyntheticValue;
+        totalSyntheticValue = newValue;
+        emit SyntheticValueUpdated(oldValue, newValue, msg.sender);
     }
     
     /**
