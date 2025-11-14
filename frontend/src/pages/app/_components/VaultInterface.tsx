@@ -258,14 +258,29 @@ const VaultInterface = () => {
     } catch (err: any) {
       console.error("Transaction failed:", err);
       
-      // Show error toast
-      if (err.message?.includes("Insufficient collateral")) {
-        showError("Insufficient Collateral", "Try minting less or depositing more HBAR");
-      } else if (err.message?.includes("user rejected")) {
-        showError("Transaction Cancelled", "You rejected the transaction");
-      } else {
-        showError("Transaction Failed", err.message || "An error occurred");
+      // Show error toast with user-friendly messages
+      let errorMessage = "An error occurred during the transaction";
+      
+      if (err.message) {
+        if (err.message.includes("Insufficient collateral")) {
+          errorMessage = "Try minting less or depositing more HBAR";
+        } else if (err.message.includes("user rejected")) {
+          showError("Transaction Cancelled", "You rejected the transaction");
+          return;
+        } else if (err.message.includes("insufficient funds")) {
+          errorMessage = "Insufficient HBAR balance";
+        } else if (err.message.includes("execution reverted")) {
+          errorMessage = "Transaction failed - check your inputs";
+        } else {
+          // For other errors, show a shortened version
+          const shortMessage = err.message.split("(")[0].trim();
+          errorMessage = shortMessage.length > 60 
+            ? shortMessage.substring(0, 60) + "..." 
+            : shortMessage;
+        }
       }
+      
+      showError("Transaction Failed", errorMessage);
     }
   };
 
@@ -370,7 +385,7 @@ const VaultInterface = () => {
                 color: #ffffff;
               `}
             >
-              {userPosition?.debt || "0.0"} HBAR
+              {parseFloat(userPosition?.debt || "0").toFixed(2)} HBAR
             </div>
           </div>
         </div>
