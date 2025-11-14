@@ -35,15 +35,15 @@ const PositionHistory = ({ userCollateral, userDebt }: PositionHistoryProps) => 
       try {
         setIsLoading(true);
         const transactions = await db.getVaultTransactions(connection.account.accountId);
-        
+
         const formattedHistory: HistoryEntry[] = transactions.map((tx: any) => {
           // Handle collateral ratio - check for max uint256 (infinite ratio)
           let ratio: number | undefined = undefined;
           if (tx.collateral_ratio) {
             const ratioStr = tx.collateral_ratio.toString();
             // Check if it's the max uint256 value (infinite ratio)
-            if (ratioStr === "115792089237316195423570985008687907853269984665640564039457584007913129639935" || 
-                parseFloat(ratioStr) > 1000000) {
+            if (ratioStr === "115792089237316195423570985008687907853269984665640564039457584007913129639935" ||
+              parseFloat(ratioStr) > 1000000) {
               ratio = undefined; // Will display as "∞"
             } else {
               ratio = parseFloat(ratioStr);
@@ -168,6 +168,39 @@ const PositionHistory = ({ userCollateral, userDebt }: PositionHistoryProps) => 
             display: flex;
             flex-direction: column;
             gap: 0.75rem;
+            max-height: ${history.length > 2 ? '280px' : 'auto'};
+            overflow-y: ${history.length > 2 ? 'auto' : 'visible'};
+            padding-right: ${history.length > 2 ? '0.5rem' : '0'};
+            
+            /* Custom scrollbar - hidden by default */
+            &::-webkit-scrollbar {
+              width: 8px;
+              opacity: 0;
+              transition: opacity 0.3s ease;
+            }
+            
+            &::-webkit-scrollbar-track {
+              background: transparent;
+              border-radius: 10px;
+            }
+            
+            &::-webkit-scrollbar-thumb {
+              background: transparent;
+              border-radius: 10px;
+            }
+            
+            /* Show scrollbar on hover */
+            &:hover::-webkit-scrollbar-track {
+              background: rgba(0, 0, 0, 0.3);
+            }
+            
+            &:hover::-webkit-scrollbar-thumb {
+              background: linear-gradient(180deg, #dcfd8f 0%, #a8d45f 100%);
+              
+              &:hover {
+                background: linear-gradient(180deg, #e8ffaa 0%, #b8e46f 100%);
+              }
+            }
           `}
         >
           {history.map((entry, index) => (
