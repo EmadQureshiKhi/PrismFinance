@@ -2,6 +2,7 @@ import { css } from "@emotion/react";
 import { useReserves } from "@/hooks/useReserves";
 import { ArrowClockwise, Warning, DownloadSimple, Link } from "@phosphor-icons/react";
 import { CONTRACTS } from "@/config/contracts";
+import { AssetReservesProof } from "./_components/AssetReservesProof";
 
 const ReservesPage = () => {
     const { reserveData, attestations, isLoading, error, lastRefresh, refresh } = useReserves();
@@ -467,6 +468,11 @@ const ReservesPage = () => {
                 </a>
             </div>
 
+            {/* Asset Exchange Reserves - NEW */}
+            <div css={css`margin-bottom: 3rem;`}>
+                <AssetReservesProof refreshTrigger={lastRefresh?.getTime()} />
+            </div>
+
             {/* Attestation History */}
             <div css={css`
         background: rgba(0, 0, 0, 0.3);
@@ -512,10 +518,11 @@ const ReservesPage = () => {
                         <thead>
                             <tr>
                                 <th>Timestamp</th>
-                                <th>Collateral</th>
+                                <th>Type</th>
+                                <th>Reserves</th>
                                 <th>Debt</th>
                                 <th>Ratio</th>
-                                <th>Transaction</th>
+                                <th>Link</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -525,14 +532,80 @@ const ReservesPage = () => {
                                         <td>
                                             {new Date(attestation.timestamp).toLocaleString()}
                                         </td>
+                                        <td>
+                                            <span css={css`
+                                                display: inline-flex;
+                                                align-items: center;
+                                                justify-content: center;
+                                                min-width: 110px;
+                                                padding: 0.25rem 0.5rem;
+                                                border-radius: 6px;
+                                                font-size: 0.75rem;
+                                                font-weight: 600;
+                                                text-align: center;
+                                                background: ${
+                                                    attestation.type === 'reserve_funding' 
+                                                        ? 'rgba(220, 253, 143, 0.1)' 
+                                                        : attestation.type === 'initialization'
+                                                        ? 'rgba(150, 150, 150, 0.1)'
+                                                        : 'rgba(100, 150, 255, 0.1)'
+                                                };
+                                                color: ${
+                                                    attestation.type === 'reserve_funding' 
+                                                        ? '#dcfd8f' 
+                                                        : attestation.type === 'initialization'
+                                                        ? '#a0a0a0'
+                                                        : '#6496ff'
+                                                };
+                                                border: 1px solid ${
+                                                    attestation.type === 'reserve_funding' 
+                                                        ? 'rgba(220, 253, 143, 0.3)' 
+                                                        : attestation.type === 'initialization'
+                                                        ? 'rgba(150, 150, 150, 0.3)'
+                                                        : 'rgba(100, 150, 255, 0.3)'
+                                                };
+                                            `}>
+                                                {attestation.type === 'reserve_funding' 
+                                                    ? 'Asset Reserves' 
+                                                    : attestation.type === 'initialization'
+                                                    ? 'System Init'
+                                                    : 'Vault Reserves'}
+                                            </span>
+                                        </td>
                                         <td css={css`color: #dcfd8f; font-weight: 600;`}>
-                                            {attestation.collateral} HBAR
+                                            {attestation.type === 'initialization' ? (
+                                                <span css={css`color: #a0a0a0; font-style: italic;`}>
+                                                    {attestation.message || 'System initialized'}
+                                                </span>
+                                            ) : (
+                                                <>
+                                                    {attestation.collateral} ℏ
+                                                    {attestation.funding?.amount && (
+                                                        <span css={css`
+                                                            color: #a0a0a0;
+                                                            font-size: 0.75rem;
+                                                            font-weight: 400;
+                                                            margin-left: 0.5rem;
+                                                        `}>
+                                                            (+{attestation.funding.amount} ℏ)
+                                                        </span>
+                                                    )}
+                                                </>
+                                            )}
                                         </td>
                                         <td>
-                                            ${attestation.debt}
+                                            {attestation.type === 'reserve_funding' ? (
+                                                <span css={css`color: #a0a0a0;`}>N/A</span>
+                                            ) : (
+                                                `$${attestation.debt}`
+                                            )}
                                         </td>
                                         <td css={css`color: #dcfd8f; font-weight: 600;`}>
-                                            {attestation.ratio}%
+                                            {attestation.ratio === 'N/A' ? (
+                                                <span css={css`color: #a0a0a0;`}>N/A</span>
+                                            ) : (
+                                                `${attestation.ratio}%`
+                                            )}
                                         </td>
                                         <td>
                                             <a
@@ -550,14 +623,14 @@ const ReservesPage = () => {
                           }
                         `}
                                             >
-                                                View on HCS
+                                                View
                                             </a>
                                         </td>
                                     </tr>
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan={5} css={css`
+                                    <td colSpan={6} css={css`
                     text-align: center;
                     color: #a0a0a0;
                     padding: 2rem !important;

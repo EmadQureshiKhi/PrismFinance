@@ -20,6 +20,12 @@ interface AttestationMessage {
     ratio: string;
     txHash: string;
     blockNumber: number;
+    type?: string;
+    action?: string;
+    message?: string;
+    funding?: {
+        amount: string;
+    };
 }
 
 export const useReserves = () => {
@@ -78,15 +84,11 @@ export const useReserves = () => {
 
             const [reserveCollateral, totalDebt, globalRatio, healthy, lastUpdate] = reserveInfo;
 
-            // Calculate total collateral from contract balance + dummy attestations
-            // Contract has real balance, we add the dummy 2500 HBAR (1500 + 1000)
-            const additionalCollateral = ethers.parseEther("2500");
-            const totalCollateral = reserveOracleBalance + additionalCollateral;
+            // Use actual contract balance only (no dummy data)
+            const totalCollateral = reserveOracleBalance;
 
-            console.log("💰 Total collateral calculation:", {
-                contractBalance: ethers.formatEther(reserveOracleBalance),
-                additional: "2500",
-                total: ethers.formatEther(totalCollateral)
+            console.log("💰 Total collateral:", {
+                contractBalance: ethers.formatEther(reserveOracleBalance)
             });
 
             console.log("📊 Reserve data received:", {
@@ -165,9 +167,9 @@ export const useReserves = () => {
 
     const fetchAttestations = useCallback(async () => {
         try {
-            // Fetch from Hedera Mirror Node API
+            // Fetch from Hedera Mirror Node API - fetch more to account for broken messages
             const topicId = CONTRACTS.hcsTopic;
-            const mirrorNodeUrl = `https://testnet.mirrornode.hedera.com/api/v1/topics/${topicId}/messages?limit=2&order=desc`;
+            const mirrorNodeUrl = `https://testnet.mirrornode.hedera.com/api/v1/topics/${topicId}/messages?limit=20&order=desc`;
 
             console.log("🔍 Fetching attestations from HCS topic:", topicId);
 
@@ -181,25 +183,84 @@ export const useReserves = () => {
                     try {
                         // Decode base64 message
                         const messageText = atob(msg.message);
-                        const attestation = JSON.parse(messageText);
+                        
+                        // Skip messages that are clearly truncated (end with incomplete JSON)
+                        if (messageText.length >= 1024 && !messageText.trim().endsWith('}')) {
+                            // Message is truncated, skip it silently
+                            return null;
+                        }
+                        
+                        // Try to parse JSON - handle both single-line and pretty-printed
+                        let attestation;
+                        try {
+                            attestation = JSON.parse(messageText);
+                        } catch (parseError) {
+                            // Silently skip unparseable messages
+                            return null;
+                        }
 
                         // Parse consensus timestamp (format: seconds.nanoseconds)
                         const [seconds] = msg.consensus_timestamp.split('.');
                         const timestamp = new Date(Number(seconds) * 1000);
 
-                        // Get raw values from message
-                        const collateralFromMsg = parseFloat(attestation.reserves?.collateral?.hbar || "0");
-                        const debtFromMsg = parseFloat(attestation.reserves?.syntheticValue?.hbar || "0");
+                        // Handle different attestation formats
+                        let collateralFromMsg = 0;
+                        let debtFromMsg = 0;
+                        let fundingAmount = 0;
+
+                        // Check attestation type
+                        if (attestation.type === "initialization") {
+                            // Initialization message - skip or show as info
+                            return {
+                                timestamp: timestamp.toISOString(),
+                                collateral: "0.00",
+                                debt: "0.00",
+                                ratio: "N/A",
+                                txHash: "System Init",
+                                blockNumber: msg.sequence_number,
+                                rawCollateral: 0,
+                                rawDebt: 0,
+                                type: "initialization",
+                                action: "System initialized",
+                                message: attestation.message
+                            };
+                        } else if (attestation.type === "vault_reserves") {
+                            // Vault reserves attestation (compact format)
+                            collateralFromMsg = parseFloat(attestation.collateral || "0");
+                            debtFromMsg = parseFloat(attestation.debt || "0");
+                        } else if (attestation.type === "reserve_funding") {
+                            // Compact format (new)
+                            if (attestation.after !== undefined) {
+                                collateralFromMsg = parseFloat(attestation.after || "0");
+                                fundingAmount = parseFloat(attestation.add || "0");
+                            } 
+                            // Legacy verbose format (old)
+                            else if (attestation.reserves?.after?.totalHBAR) {
+                                collateralFromMsg = parseFloat(attestation.reserves.after.totalHBAR || "0");
+                                fundingAmount = parseFloat(attestation.funding?.amountHBAR || attestation.funding?.amount || "0");
+                            }
+                            // For asset exchange, debt is 0 (no synthetic debt)
+                            debtFromMsg = 0;
+                        } else {
+                            // Legacy vault format or other types
+                            collateralFromMsg = parseFloat(attestation.reserves?.collateral?.hbar || "0");
+                            debtFromMsg = parseFloat(attestation.reserves?.syntheticValue?.hbar || "0");
+                        }
 
                         return {
                             timestamp: timestamp.toISOString(),
                             collateral: collateralFromMsg.toFixed(2),
                             debt: debtFromMsg.toFixed(2),
                             ratio: "0", // Will calculate later with cumulative
-                            txHash: `HCS Message #${msg.sequence_number}`,
-                            blockNumber: msg.sequence_number,
+                            txHash: attestation.tx || `HCS Message #${msg.sequence_number}`,
+                            blockNumber: attestation.block || msg.sequence_number,
                             rawCollateral: collateralFromMsg,
-                            rawDebt: debtFromMsg
+                            rawDebt: debtFromMsg,
+                            type: attestation.type || "unknown",
+                            action: attestation.action,
+                            funding: fundingAmount > 0 ? {
+                                amount: fundingAmount.toFixed(2)
+                            } : undefined
                         };
                     } catch (e) {
                         console.error("Error parsing attestation:", e);
@@ -210,78 +271,33 @@ export const useReserves = () => {
                 console.log("✅ Loaded", realAttestations.length, "real attestations from HCS");
             }
 
-            // Take only 2 latest real attestations
-            const latestReal = realAttestations.slice(0, 2);
+            // Use only real attestations (no dummy data)
+            const allAttestations = realAttestations.slice(0, 10); // Show up to 10 latest
 
-            // Add 3 dummy attestations (oldest to newest)
-            const oldestRealTime = latestReal.length > 0
-                ? new Date(latestReal[latestReal.length - 1].timestamp).getTime()
-                : Date.now();
+            // Calculate ratios for real attestations
+            const hbarPrice = 0.18; // Approximate HBAR price
 
-            const dummyAttestations: AttestationMessage[] = [
-                {
-                    timestamp: new Date(oldestRealTime - 7200000).toISOString(), // Oldest
-                    collateral: "1,000.00",
-                    debt: "0.00",
-                    ratio: "∞",
-                    txHash: "Reserve Setup",
-                    blockNumber: 99999997,
-                    rawCollateral: 1000,
-                    rawDebt: 0
-                },
-                {
-                    timestamp: new Date(oldestRealTime - 3600000).toISOString(),
-                    collateral: "1,500.00",
-                    debt: "0.00",
-                    ratio: "∞",
-                    txHash: "Initial Reserve",
-                    blockNumber: 99999998,
-                    rawCollateral: 1500,
-                    rawDebt: 0
-                },
-                {
-                    timestamp: new Date(oldestRealTime - 1800000).toISOString(), // 30 min before oldest real
-                    collateral: "93.50",
-                    debt: "0.00",
-                    ratio: "∞",
-                    txHash: "Early Deposit",
-                    blockNumber: 99999999,
-                    rawCollateral: 93.5,
-                    rawDebt: 0
-                }
-            ];
-
-            // Combine all: real first (newest), then dummy (older)
-            const allAttestations = [...latestReal, ...dummyAttestations];
-
-            // Calculate cumulative ratios (from oldest to newest)
-            let cumulativeCollateral = 0;
-            const hbarPrice = 0.18;
-
-            // Process from oldest to newest
-            for (let i = allAttestations.length - 1; i >= 0; i--) {
-                const att = allAttestations[i] as any;
-                cumulativeCollateral += att.rawCollateral || parseFloat(att.collateral.replace(/,/g, ''));
-
-                let debt = att.rawDebt || parseFloat(att.debt);
-
-                // For the latest attestation (index 0), show only the incremental debt ($48)
-                if (i === 0 && debt > 0) {
-                    debt = 48; // Show only the new debt added
-                    att.debt = "48.00";
-                    att.rawDebt = 48;
-                }
+            for (const att of allAttestations as any[]) {
+                const collateral = att.rawCollateral || parseFloat(att.collateral.replace(/,/g, ''));
+                const debt = att.rawDebt || parseFloat(att.debt);
 
                 if (debt > 0) {
-                    const collateralValueUSD = cumulativeCollateral * hbarPrice;
+                    const collateralValueUSD = collateral * hbarPrice;
                     const ratioValue = (collateralValueUSD / debt) * 100;
                     att.ratio = ratioValue.toFixed(1);
                 } else {
-                    att.ratio = "∞";
+                    // For asset exchange (no debt), show N/A instead of infinity
+                    att.ratio = att.type === "reserve_funding" ? "N/A" : "∞";
                 }
 
-                // Update collateral display to show actual value (not cumulative)
-                att.collateral = (att.rawCollateral || parseFloat(att.collateral.replace(/,/g, ''))).toLocaleString(undefined, {
+                // Format collateral display
+                att.collateral = collateral.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+                
+                // Format debt display
+                att.debt = debt.toLocaleString(undefined, {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2
                 });
@@ -291,26 +307,8 @@ export const useReserves = () => {
 
         } catch (err) {
             console.error("Error fetching attestations:", err);
-            // Fallback to dummy data on error
-            const now = Date.now();
-            setAttestations([
-                {
-                    timestamp: new Date(now - 3600000).toISOString(),
-                    collateral: "1,500.00",
-                    debt: "0.00",
-                    ratio: "∞",
-                    txHash: "Initial Reserve",
-                    blockNumber: 99999998
-                },
-                {
-                    timestamp: new Date(now - 7200000).toISOString(),
-                    collateral: "1,000.00",
-                    debt: "0.00",
-                    ratio: "∞",
-                    txHash: "Reserve Setup",
-                    blockNumber: 99999997
-                }
-            ]);
+            // No fallback dummy data - just show empty
+            setAttestations([]);
         }
     }, []);
 
