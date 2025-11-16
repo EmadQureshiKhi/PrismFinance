@@ -6,7 +6,7 @@ import { db } from "@/services/database";
 
 interface HistoryEntry {
   timestamp: Date;
-  action: "deposit" | "withdraw" | "liquidation";
+  action: "deposit" | "withdraw" | "liquidation" | "yield_claim";
   hbarAmount?: number;
   tokenAmount?: number;
   tokenSymbol?: string;
@@ -50,9 +50,14 @@ const PositionHistory = ({ userCollateral, userDebt }: PositionHistoryProps) => 
             }
           }
 
+          // Check if this is a yield claim (withdraw with 0 token amount and HBAR symbol)
+          const isYieldClaim = tx.type === 'burn_withdraw' && 
+                               parseFloat(tx.token_amount) === 0 && 
+                               tx.token_symbol === 'HBAR';
+
           return {
             timestamp: new Date(tx.created_at),
-            action: tx.type === 'deposit_mint' ? 'deposit' : 'withdraw',
+            action: isYieldClaim ? 'yield_claim' : (tx.type === 'deposit_mint' ? 'deposit' : 'withdraw'),
             hbarAmount: parseFloat(tx.hbar_amount),
             tokenAmount: parseFloat(tx.token_amount),
             tokenSymbol: tx.token_symbol,
@@ -90,6 +95,8 @@ const PositionHistory = ({ userCollateral, userDebt }: PositionHistoryProps) => 
         return <ArrowDown size={16} color="#dcfd8f" weight="bold" />;
       case "withdraw":
         return <ArrowUp size={16} color="#6b9eff" weight="bold" />;
+      case "yield_claim":
+        return <ArrowUp size={16} color="#dcfd8f" weight="bold" />;
       case "liquidation":
         return <Warning size={16} color="#ff6464" weight="fill" />;
       default:
@@ -103,10 +110,21 @@ const PositionHistory = ({ userCollateral, userDebt }: PositionHistoryProps) => 
         return "#dcfd8f";
       case "withdraw":
         return "#6b9eff";
+      case "yield_claim":
+        return "#dcfd8f";
       case "liquidation":
         return "#ff6464";
       default:
         return "#ffffff";
+    }
+  };
+
+  const getActionLabel = (action: string) => {
+    switch (action) {
+      case "yield_claim":
+        return "Yield Claim";
+      default:
+        return action.charAt(0).toUpperCase() + action.slice(1);
     }
   };
 
@@ -240,10 +258,9 @@ const PositionHistory = ({ userCollateral, userDebt }: PositionHistoryProps) => 
                       font-size: 0.875rem;
                       font-weight: 600;
                       color: ${getActionColor(entry.action)};
-                      text-transform: capitalize;
                     `}
                   >
-                    {entry.action}
+                    {getActionLabel(entry.action)}
                   </span>
                 </div>
                 <span
@@ -266,13 +283,17 @@ const PositionHistory = ({ userCollateral, userDebt }: PositionHistoryProps) => 
               >
                 {entry.hbarAmount && (
                   <div>
-                    <span css={css` color: #a0a0a0; `}>HBAR:</span>{" "}
+                    <span css={css` color: #a0a0a0; `}>
+                      {entry.action === 'yield_claim' ? 'Yield:' : 'HBAR:'}
+                    </span>{" "}
                     <span css={css` color: #ffffff; font-weight: 600; `}>
-                      {entry.hbarAmount.toFixed(2)}
+                      {entry.action === 'yield_claim' 
+                        ? `${entry.hbarAmount.toFixed(6)} HBAR`
+                        : entry.hbarAmount.toFixed(2)}
                     </span>
                   </div>
                 )}
-                {entry.tokenAmount && entry.tokenSymbol && (
+                {entry.tokenAmount && entry.tokenSymbol && entry.action !== 'yield_claim' && (
                   <div>
                     <span css={css` color: #a0a0a0; `}>{entry.tokenSymbol}:</span>{" "}
                     <span css={css` color: #ffffff; font-weight: 600; `}>

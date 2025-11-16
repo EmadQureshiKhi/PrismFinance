@@ -1,5 +1,9 @@
 import { css } from "@emotion/react";
-import { TrendUp, Coins } from "@phosphor-icons/react";
+import { TrendUp, Coins, Spinner } from "@phosphor-icons/react";
+import { useState, useEffect } from "react";
+import { useVault } from "@/hooks/useVault";
+import { useWallet } from "@/contexts/WalletContext";
+import { useToast } from "@/contexts/ToastContext";
 
 interface YieldDisplayProps {
   userCollateral: number;
@@ -7,13 +11,84 @@ interface YieldDisplayProps {
 }
 
 const YieldDisplay = ({ userCollateral }: YieldDisplayProps) => {
-  // Simulated APY between 8-15%
-  const baseAPY = 8 + Math.random() * 7;
-  const lstBonus = 2 + Math.random() * 3;
-  const totalAPY = baseAPY + lstBonus;
+  const { getCurrentAPY, calculateYield, claimYield } = useVault();
+  const { connection } = useWallet();
+  const { showSuccess, showError } = useToast();
 
-  // Calculate accrued yield based on collateral (simulated)
-  const accruedYield = userCollateral * (totalAPY / 100) * (30 / 365); // 30 days worth
+  const [yieldData, setYieldData] = useState({
+    baseAPY: 0,
+    lstBonus: 0,
+    totalAPY: 0,
+    accruedYield: 0,
+    canClaim: false,
+    isLoading: true,
+  });
+
+  const [isClaiming, setIsClaiming] = useState(false);
+
+  // Fetch yield data
+  useEffect(() => {
+    const fetchYieldData = async () => {
+      if (!connection?.account?.evmAddress) {
+        setYieldData(prev => ({ ...prev, isLoading: false }));
+        return;
+      }
+
+      try {
+        // Get APY rates
+        const { base, bonus } = await getCurrentAPY();
+        
+        // Get accrued yield using EVM address
+        const accrued = await calculateYield(connection.account.evmAddress);
+        const accruedYield = parseFloat(accrued);
+
+        setYieldData({
+          baseAPY: base,
+          lstBonus: bonus,
+          totalAPY: base + bonus,
+          accruedYield,
+          canClaim: accruedYield > 0,
+          isLoading: false,
+        });
+      } catch (error) {
+        console.error("Error fetching yield data:", error);
+        setYieldData(prev => ({ ...prev, isLoading: false }));
+      }
+    };
+
+    fetchYieldData();
+    
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchYieldData, 30000);
+    return () => clearInterval(interval);
+  }, [connection, getCurrentAPY, calculateYield, userCollateral]);
+
+  // Handle claim yield
+  const handleClaimYield = async () => {
+    if (!yieldData.canClaim || isClaiming) return;
+
+    setIsClaiming(true);
+    try {
+      const tx = await claimYield();
+      showSuccess(
+        "Yield Claimed!",
+        `Successfully claimed ${yieldData.accruedYield.toFixed(6)} HBAR`,
+        tx.hash
+      );
+      
+      // Reset yield data after claim (it's now 0)
+      setYieldData(prev => ({
+        ...prev,
+        accruedYield: 0,
+        canClaim: false,
+      }));
+    } catch (error: any) {
+      console.error("Error claiming yield:", error);
+      showError("Claim Failed", error.message || "Failed to claim yield");
+    } finally {
+      setIsClaiming(false);
+    }
+  };
 
   return (
     <div
@@ -73,23 +148,29 @@ const YieldDisplay = ({ userCollateral }: YieldDisplayProps) => {
               gap: 0.5rem;
             `}
           >
-            <span
-              css={css`
-                font-size: 1.25rem;
-                font-weight: 700;
-                color: #dcfd8f;
-              `}
-            >
-              {totalAPY.toFixed(2)}%
-            </span>
-            <span
-              css={css`
-                font-size: 0.75rem;
-                color: #a0a0a0;
-              `}
-            >
-              ({baseAPY.toFixed(1)}% base + {lstBonus.toFixed(1)}% LST)
-            </span>
+            {yieldData.isLoading ? (
+              <Spinner size={20} color="#dcfd8f" className="animate-spin" />
+            ) : (
+              <>
+                <span
+                  css={css`
+                    font-size: 1.25rem;
+                    font-weight: 700;
+                    color: #dcfd8f;
+                  `}
+                >
+                  {yieldData.totalAPY.toFixed(1)}%
+                </span>
+                <span
+                  css={css`
+                    font-size: 0.75rem;
+                    color: #a0a0a0;
+                  `}
+                >
+                  ({yieldData.baseAPY.toFixed(0)}% base + {yieldData.lstBonus.toFixed(0)}% LST)
+                </span>
+              </>
+            )}
           </div>
         </div>
 
@@ -106,7 +187,7 @@ const YieldDisplay = ({ userCollateral }: YieldDisplayProps) => {
               color: #a0a0a0;
             `}
           >
-            Accrued Yield (30d)
+            Accrued Yield
           </span>
           <div
             css={css`
@@ -115,35 +196,80 @@ const YieldDisplay = ({ userCollateral }: YieldDisplayProps) => {
               gap: 0.5rem;
             `}
           >
-            <Coins size={16} color="#dcfd8f" />
-            <span
-              css={css`
-                font-size: 1.25rem;
-                font-weight: 700;
-                color: #ffffff;
-              `}
-            >
-              {accruedYield.toFixed(2)} HBAR
-            </span>
+            {yieldData.isLoading ? (
+              <Spinner size={16} color="#dcfd8f" className="animate-spin" />
+            ) : (
+              <>
+                <Coins size={16} color="#dcfd8f" />
+                <span
+                  css={css`
+                    font-size: 1.25rem;
+                    font-weight: 700;
+                    color: #ffffff;
+                  `}
+                >
+                  {yieldData.accruedYield.toFixed(6)} HBAR
+                </span>
+              </>
+            )}
           </div>
         </div>
 
         <button
-          disabled
+          onClick={handleClaimYield}
+          disabled={!yieldData.canClaim || isClaiming || yieldData.isLoading}
           css={css`
             width: 100%;
             padding: 0.875rem;
-            background: rgba(220, 253, 143, 0.1);
-            border: 1px solid rgba(220, 253, 143, 0.3);
+            background: ${yieldData.canClaim && !isClaiming
+              ? "rgba(220, 253, 143, 0.15)"
+              : "rgba(220, 253, 143, 0.05)"};
+            border: 1px solid ${yieldData.canClaim && !isClaiming
+              ? "rgba(220, 253, 143, 0.5)"
+              : "rgba(220, 253, 143, 0.2)"};
             border-radius: 12px;
-            color: rgba(220, 253, 143, 0.5);
+            color: ${yieldData.canClaim && !isClaiming
+              ? "#dcfd8f"
+              : "rgba(220, 253, 143, 0.4)"};
             font-size: 0.875rem;
             font-weight: 600;
-            cursor: not-allowed;
+            cursor: ${yieldData.canClaim && !isClaiming ? "pointer" : "not-allowed"};
             transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+
+            &:hover {
+              background: ${yieldData.canClaim && !isClaiming
+                ? "rgba(220, 253, 143, 0.2)"
+                : "rgba(220, 253, 143, 0.05)"};
+            }
+
+            @keyframes spin {
+              from {
+                transform: rotate(0deg);
+              }
+              to {
+                transform: rotate(360deg);
+              }
+            }
+
+            svg {
+              animation: ${isClaiming ? "spin 1s linear infinite" : "none"};
+            }
           `}
         >
-          Claim Yield (Coming Soon)
+          {isClaiming ? (
+            <>
+              <Spinner size={16} />
+              Claiming...
+            </>
+          ) : yieldData.canClaim ? (
+            "Claim Yield"
+          ) : (
+            "No Yield to Claim"
+          )}
         </button>
       </div>
 
@@ -158,7 +284,7 @@ const YieldDisplay = ({ userCollateral }: YieldDisplayProps) => {
           line-height: 1.5;
         `}
       >
-        Yield is generated from LST staking rewards and protocol fees. Simulated values shown.
+        Yield is generated from LST staking rewards and protocol fees. Earn {yieldData.totalAPY.toFixed(1)}% APY on your HBAR collateral.
       </div>
     </div>
   );
