@@ -32,12 +32,22 @@ const cleanErrorMessage = (error: any): string => {
   }
 };
 
+interface HedgeInfo {
+  isActive: boolean;
+  hedgedAmount: string;
+  entryPrice: string;
+  currentPrice: string;
+  pnl: string;
+  effectiveCollateral: string;
+}
+
 interface UserPosition {
   collateral: string;
   debt: string;
   ratio: string;
   healthy: boolean;
   positions: Record<string, string>;
+  hedgeInfo?: HedgeInfo;
 }
 
 interface VaultHook {
@@ -51,6 +61,15 @@ interface VaultHook {
   burnAndWithdraw: (tokenSymbol: string, burnAmount: string, withdrawAmount: string) => Promise<void>;
   refreshPosition: () => Promise<void>;
   getMaxMintable: (tokenSymbol: string) => Promise<string>;
+  
+  // Yield functions
+  getCurrentAPY?: () => Promise<{ base: number; bonus: number }>;
+  calculateYield?: (userAddress: string) => Promise<string>;
+  claimYield?: () => Promise<any>;
+  getYieldReserve?: () => Promise<string>;
+  
+  // Hedging functions
+  getHedgeInfo: () => Promise<HedgeInfo | null>;
 }
 
 // Cache key for localStorage
@@ -411,6 +430,173 @@ export const useVault = (): VaultHook => {
     }
   }, [connection, refreshPosition, userPosition]);
 
+  // ============ Yield System Functions ============
+  
+  /**
+   * Get current APY rates
+   * @returns Object with base and bonus APY percentages
+   */
+  const getCurrentAPY = useCallback(async (): Promise<{ base: number; bonus: number }> => {
+    try {
+      const vault = await getVaultContract();
+      if (!vault) return { base: 0, bonus: 0 };
+
+      const [base, bonus] = await vault.getCurrentAPY();
+      return {
+        base: parseFloat(ethers.formatUnits(base, 2)), // Convert basis points to %
+        bonus: parseFloat(ethers.formatUnits(bonus, 2))
+      };
+    } catch (err) {
+      console.error("Error getting APY:", err);
+      return { base: 0, bonus: 0 };
+    }
+  }, [getVaultContract]);
+
+  /**
+   * Calculate accrued yield for user
+   * @param userAddress User's address
+   * @returns Accrued yield in HBAR
+   */
+  const calculateYield = useCallback(async (userAddress: string): Promise<string> => {
+    try {
+      const vault = await getVaultContract();
+      if (!vault) return "0";
+
+      const yieldWei = await vault.calculateYield(userAddress);
+      return ethers.formatEther(yieldWei); // Convert wei to HBAR
+    } catch (err) {
+      console.error("Error calculating yield:", err);
+      return "0";
+    }
+  }, [getVaultContract]);
+
+  /**
+   * Claim accrued yield
+   * @returns Transaction receipt
+   */
+  const claimYield = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const vault = await getVaultContract(true); // Need signer for transactions
+      if (!vault) throw new Error("Vault contract not initialized");
+
+      const userAddress = getUserAddress();
+      if (!userAddress) throw new Error("User address not available");
+
+      // Get yield amount before claiming
+      const yieldAmount = await vault.calculateYield(userAddress);
+      const yieldInHbar = ethers.formatEther(yieldAmount);
+
+      console.log("Claiming yield...");
+      const tx = await vault.claimYield();
+      console.log("Transaction sent:", tx.hash);
+
+      const receipt = await tx.wait();
+      console.log("Yield claimed successfully!");
+
+      // Save to database
+      if (connection?.account?.accountId) {
+        try {
+          await db.logVaultTransaction({
+            walletAddress: connection.account.accountId,
+            type: "burn_withdraw", // Use existing type for now (claim is like a withdraw)
+            hbarAmount: yieldInHbar,
+            tokenSymbol: "HBAR",
+            tokenAmount: "0", // No token burned
+            txHash: tx.hash,
+          });
+          console.log("✅ Yield claim saved to database");
+        } catch (dbErr) {
+          console.error("Error saving to database:", dbErr);
+          // Don't throw - transaction was successful
+        }
+      }
+
+      // Refresh position after claiming
+      await refreshPosition();
+
+      return receipt;
+    } catch (err: any) {
+      console.error("Error claiming yield:", err);
+      const errorMessage = cleanErrorMessage(err);
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [getVaultContract, refreshPosition, getUserAddress, connection]);
+
+  /**
+   * Get yield reserve balance
+   * @returns Yield reserve in HBAR
+   */
+  const getYieldReserve = useCallback(async (): Promise<string> => {
+    try {
+      const vault = await getVaultContract();
+      if (!vault) return "0";
+
+      const reserveWei = await vault.yieldReserve();
+      return ethers.formatEther(reserveWei);
+    } catch (err) {
+      console.error("Error getting yield reserve:", err);
+      return "0";
+    }
+  }, [getVaultContract]);
+
+  // ============ Delta-Neutral Hedging Functions ============
+
+  /**
+   * Get user's hedge position info
+   * @returns Hedge information including PnL and effective collateral
+   */
+  const getHedgeInfo = useCallback(async (): Promise<HedgeInfo | null> => {
+    try {
+      const vault = await getVaultContract();
+      if (!vault) {
+        console.log("No vault contract");
+        return null;
+      }
+
+      const userAddress = getUserAddress();
+      if (!userAddress) {
+        console.log("No user address");
+        return null;
+      }
+
+      console.log("Fetching hedge info for:", userAddress);
+      const hedgeInfo = await vault.getUserHedgeInfo(userAddress);
+      console.log("Raw hedge info:", hedgeInfo);
+      
+      if (!hedgeInfo.isActive) {
+        return {
+          isActive: false,
+          hedgedAmount: "0",
+          entryPrice: "0",
+          currentPrice: "0",
+          pnl: "0",
+          effectiveCollateral: "0"
+        };
+      }
+
+      const result = {
+        isActive: hedgeInfo.isActive,
+        hedgedAmount: ethers.formatEther(hedgeInfo.hedgedAmount),
+        entryPrice: ethers.formatUnits(hedgeInfo.entryPrice, 8),
+        currentPrice: ethers.formatUnits(hedgeInfo.currentPrice, 8),
+        pnl: ethers.formatEther(hedgeInfo.pnl),
+        effectiveCollateral: ethers.formatEther(hedgeInfo.effectiveCollateral)
+      };
+      
+      console.log("Formatted hedge info:", result);
+      return result;
+    } catch (err) {
+      console.error("Error getting hedge info:", err);
+      return null;
+    }
+  }, [getVaultContract, getUserAddress]);
+
   return {
     userPosition,
     isLoading,
@@ -419,5 +605,11 @@ export const useVault = (): VaultHook => {
     depositAndMint,
     burnAndWithdraw,
     refreshPosition,
+    // Yield functions
+    getCurrentAPY,
+    calculateYield,
+    claimYield,
+    getYieldReserve,
+    getHedgeInfo,
   };
 };
