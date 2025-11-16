@@ -5,6 +5,7 @@ import AppLayout from "./_components/AppLayout";
 import SwapInterface from "./_components/SwapInterface";
 import VaultInterface from "./_components/VaultInterface";
 import AssetsInterface from "./_components/AssetsInterface";
+import PrepsInterface from "./_components/PrepsInterface";
 import ReservesPage from "./reserves/ReservesPage";
 import prismBg from "@/assets/Prism Finance Background Final.png";
 
@@ -37,6 +38,8 @@ const AppPage = () => {
                 return <VaultInterface />;
             case "assets":
                 return <AssetsInterface />;
+            case "liquidity":
+                return <PrepsInterface />;
             case "swap":
             default:
                 return <SwapInterface />;

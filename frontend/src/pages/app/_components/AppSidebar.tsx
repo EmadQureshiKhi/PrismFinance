@@ -19,7 +19,7 @@ const navItems: NavItem[] = [
   { id: "swap", label: "Swap", icon: ArrowsLeftRight },
   { id: "vault", label: "Vault", icon: Vault },
   { id: "assets", label: "Assets", icon: ChartLine },
-  { id: "liquidity", label: "Liquidity", icon: Coins },
+  { id: "liquidity", label: "Preps", icon: Coins },
   { id: "governance", label: "Governance", icon: Users },
   { id: "earn", label: "Earn", icon: Lightning },
 ];
