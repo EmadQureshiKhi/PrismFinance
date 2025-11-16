@@ -1,9 +1,12 @@
 // Contract addresses and configuration
 export const CONTRACTS = {
   network: "testnet",
-  vault: "0xD2852dEd28F7DaD7BaeDacD6C16EdaaC2542820A",
+  vault: "0x3A2c3d52A61Bf0d09f6c231C2e404b8cF76e7Ce6", // Updated with Delta-Neutral Hedging
   oracle: "0xb1C70B19082d470829e88D784bA05C105300047a",
   priceOracle: "0x1050eb5E510E6d9D747fEeD6E32B76D4061896F4",
+  // Perps contracts for delta-neutral hedging
+  perpsVault: "0x0756B2586E18A5Fe98dc909d43fcD162C803a455",
+  perpsEngine: "0xC19B79cFc317CB9364dcAf2cFf899207Ad423C6c",
   // Asset Exchange contracts (ownership-based)
   pythOracle: "0x1050eb5E510E6d9D747fEeD6E32B76D4061896F4",
   assetExchange: "0x2b5a0C2F1004fb9a9039bee910694C0a57e30a59",
