@@ -3,6 +3,8 @@ pragma solidity ^0.8.20;
 
 import "./PrismReserveOracle.sol";
 import "./interfaces/IPriceOracle.sol";
+import "./PrismPerpsVault.sol";
+import "./PrismPerpsEngine.sol";
 
 /**
  * @title PrismVaultV2
@@ -45,6 +47,30 @@ contract PrismVaultV2 {
     uint256 public totalYieldPaid;                         // Total yield paid out (in wei)
     uint256 public totalYieldAccrued;                      // Total yield accrued (in wei)
     
+    // ============ Delta-Neutral Hedging State Variables ============
+    
+    // Perps integration
+    PrismPerpsVault public perpsVault;
+    PrismPerpsEngine public perpsEngine;
+    
+    // Hedge settings
+    bool public hedgingEnabled = true;
+    uint256 public hedgeRatio = 9000;                      // 90% hedged (basis points)
+    uint256 public hedgeLeverage = 1;                      // 1x leverage for safety
+    
+    // User hedge positions
+    struct UserHedge {
+        bytes32 perpsPositionId;                           // Position ID in perps engine
+        uint256 collateralAmount;                          // HBAR deposited to vault (wei)
+        uint256 hedgedAmount;                              // Amount hedged (wei)
+        uint256 perpsCollateral;                           // Collateral locked in perps (wei)
+        uint256 entryPrice;                                // Entry price (8 decimals)
+        uint256 timestamp;                                 // When created
+        bool isActive;                                     // Is hedge active
+    }
+    
+    mapping(address => UserHedge) public userHedges;
+    
     // Constants
     uint256 public constant MIN_COLLATERAL_RATIO = 150; // 150%
     uint256 public constant LIQUIDATION_RATIO = 130; // 130%
@@ -60,6 +86,17 @@ contract PrismVaultV2 {
     event Mint(address indexed user, string token, uint256 amount);
     event Burn(address indexed user, string token, uint256 amount);
     event Liquidation(address indexed user, address indexed liquidator, uint256 collateralSeized);
+    
+    // Yield events
+    event YieldAccrued(address indexed user, uint256 amount);
+    event YieldClaimed(address indexed user, uint256 amount);
+    event YieldReserveFunded(uint256 amount);
+    
+    // Hedging events
+    event HedgeOpened(address indexed user, bytes32 positionId, uint256 hedgedAmount);
+    event HedgeClosed(address indexed user, bytes32 positionId, int256 pnl);
+    event HedgeAdjusted(address indexed user, bytes32 oldPositionId, bytes32 newPositionId);
+    event HedgingToggled(bool enabled);
     
     // Modifiers
     modifier onlyAdmin() {
@@ -78,6 +115,30 @@ contract PrismVaultV2 {
      */
     function registerToken(string memory symbol, address tokenAddress) external onlyAdmin {
         tokenAddresses[symbol] = tokenAddress;
+    }
+    
+    /**
+     * @notice Set perps contracts for delta-neutral hedging
+     */
+    function setPerpsContracts(address _perpsVault, address _perpsEngine) external onlyAdmin {
+        perpsVault = PrismPerpsVault(_perpsVault);
+        perpsEngine = PrismPerpsEngine(_perpsEngine);
+    }
+    
+    /**
+     * @notice Toggle hedging on/off
+     */
+    function setHedgingEnabled(bool _enabled) external onlyAdmin {
+        hedgingEnabled = _enabled;
+        emit HedgingToggled(_enabled);
+    }
+    
+    /**
+     * @notice Set hedge ratio (basis points)
+     */
+    function setHedgeRatio(uint256 _ratio) external onlyAdmin {
+        require(_ratio <= 10000, "Ratio cannot exceed 100%");
+        hedgeRatio = _ratio;
     }
     
     /**
@@ -118,6 +179,13 @@ contract PrismVaultV2 {
         oracle.withdrawForVault(payable(msg.sender), tinybars);
         
         emit Withdraw(msg.sender, amount);
+        
+        // Close or adjust hedge based on remaining collateral
+        if (userCollateral[msg.sender] == 0) {
+            _closeHedgePosition(msg.sender, false); // Keep funds in perps vault for future hedges
+        } else {
+            _adjustHedgePosition(msg.sender);
+        }
     }
     
     /**
@@ -149,19 +217,28 @@ contract PrismVaultV2 {
         require(mintAmount > 0, "Must mint tokens");
         require(tokenAddresses[token] != address(0), "Token not registered");
         
-        // Step 1: Deposit collateral
+        // Step 1: Update yield tracking before deposit
+        if (userCollateral[msg.sender] > 0) {
+            accruedYield[msg.sender] = calculateYield(msg.sender);
+        }
+        lastYieldClaim[msg.sender] = block.timestamp;
+        
+        // Step 2: Deposit collateral
         uint256 weiAmount = msg.value * WEI_PER_TINYBAR;
         userCollateral[msg.sender] += weiAmount;
         oracle.depositCollateral{value: msg.value}();
         emit Deposit(msg.sender, weiAmount);
         
-        // Step 2: Mint tokens (in same transaction)
+        // Step 2.5: Adjust hedge position for new collateral amount
+        _adjustHedgePosition(msg.sender);
+        
+        // Step 3: Mint tokens (in same transaction)
         require(_checkUserHealth(msg.sender, 0, mintAmount, token), "Insufficient collateral");
         positions[msg.sender][token] += mintAmount;
         totalMinted[token] += mintAmount;
         emit Mint(msg.sender, token, mintAmount);
         
-        // Step 3: Update oracle with new total debt
+        // Step 4: Update oracle with new total debt
         _updateOracleDebt();
     }
     
@@ -189,7 +266,13 @@ contract PrismVaultV2 {
     function burnAndWithdraw(string memory token, uint256 burnAmount, uint256 withdrawAmount) external {
         require(burnAmount > 0 || withdrawAmount > 0, "Must burn or withdraw");
         
-        // Step 1: Burn tokens
+        // Step 1: Update yield tracking before position changes
+        if (userCollateral[msg.sender] > 0) {
+            accruedYield[msg.sender] = calculateYield(msg.sender);
+        }
+        lastYieldClaim[msg.sender] = block.timestamp;
+        
+        // Step 2: Burn tokens
         if (burnAmount > 0) {
             require(burnAmount <= positions[msg.sender][token], "Insufficient position");
             positions[msg.sender][token] -= burnAmount;
@@ -197,7 +280,7 @@ contract PrismVaultV2 {
             emit Burn(msg.sender, token, burnAmount);
         }
         
-        // Step 2: Withdraw collateral (in same transaction)
+        // Step 3: Withdraw collateral (in same transaction)
         if (withdrawAmount > 0) {
             require(withdrawAmount <= userCollateral[msg.sender], "Insufficient collateral");
             require(_checkUserHealth(msg.sender, withdrawAmount, 0, ""), "Would break collateral ratio");
@@ -205,9 +288,16 @@ contract PrismVaultV2 {
             uint256 tinybars = withdrawAmount / WEI_PER_TINYBAR;
             oracle.withdrawForVault(payable(msg.sender), tinybars);
             emit Withdraw(msg.sender, withdrawAmount);
+            
+            // Close or adjust hedge based on remaining collateral
+            if (userCollateral[msg.sender] == 0) {
+                _closeHedgePosition(msg.sender, false); // Keep funds in perps vault for future hedges
+            } else {
+                _adjustHedgePosition(msg.sender);
+            }
         }
         
-        // Step 3: Update oracle with new total debt
+        // Step 4: Update oracle with new total debt
         _updateOracleDebt();
     }
     
@@ -468,12 +558,260 @@ contract PrismVaultV2 {
         oracle.updateSyntheticValue(totalDebtInUsd);
     }
     
+    // ============ Yield System Functions ============
+    
+    /**
+     * @notice Calculate accrued yield for a user
+     * @param user User address
+     * @return Total accrued yield in wei
+     */
+    function calculateYield(address user) public view returns (uint256) {
+        uint256 collateral = userCollateral[user];
+        if (collateral == 0) return accruedYield[user];
+        
+        uint256 timeElapsed = block.timestamp - lastYieldClaim[user];
+        if (timeElapsed == 0) return accruedYield[user];
+        
+        // Calculate base yield: (collateral * BASE_APY * timeElapsed) / (10000 * 365 days)
+        uint256 baseYield = (collateral * BASE_APY * timeElapsed) / (10000 * 365 days);
+        
+        // Calculate LST bonus: (collateral * LST_BONUS_APY * timeElapsed) / (10000 * 365 days)
+        uint256 lstBonus = (collateral * LST_BONUS_APY * timeElapsed) / (10000 * 365 days);
+        
+        return baseYield + lstBonus + accruedYield[user];
+    }
+    
+    /**
+     * @notice Get current APY rates
+     * @return base Base APY in basis points (1000 = 10%)
+     * @return bonus LST bonus APY in basis points (300 = 3%)
+     */
+    function getCurrentAPY() public pure returns (uint256 base, uint256 bonus) {
+        return (BASE_APY, LST_BONUS_APY);
+    }
+    
+    /**
+     * @notice Claim accrued yield
+     * @dev Transfers yield to user in HBAR
+     */
+    function claimYield() external {
+        uint256 yield = calculateYield(msg.sender);
+        require(yield > 0, "No yield to claim");
+        require(yieldReserve >= yield, "Insufficient yield reserve");
+        
+        // Update state
+        accruedYield[msg.sender] = 0;
+        lastYieldClaim[msg.sender] = block.timestamp;
+        yieldReserve -= yield;
+        totalYieldPaid += yield;
+        
+        // Convert wei to tinybars for transfer
+        uint256 tinybars = yield / WEI_PER_TINYBAR;
+        
+        // Transfer HBAR to user
+        (bool success, ) = msg.sender.call{value: tinybars}("");
+        require(success, "Transfer failed");
+        
+        emit YieldClaimed(msg.sender, yield);
+    }
+    
+    /**
+     * @notice Fund the yield reserve (admin only)
+     * @dev Receives HBAR and adds to yield reserve
+     */
+    function fundYieldReserve() external payable onlyAdmin {
+        uint256 weiAmount = msg.value * WEI_PER_TINYBAR;
+        yieldReserve += weiAmount;
+        emit YieldReserveFunded(weiAmount);
+    }
+    
     /**
      * @notice Emergency withdraw (admin only)
      */
     function emergencyWithdraw(address payable recipient, uint256 amount) external onlyAdmin {
         (bool success, ) = recipient.call{value: amount}("");
         require(success, "Transfer failed");
+    }
+    
+    // ============ Delta-Neutral Hedging Functions ============
+    
+    /**
+     * @notice Adjust hedge position based on current collateral
+     * @dev Closes existing hedge and opens new one with updated size
+     */
+    function _adjustHedgePosition(address user) internal {
+        if (!hedgingEnabled || address(perpsEngine) == address(0)) return;
+        
+        uint256 currentCollateral = userCollateral[user];
+        if (currentCollateral == 0) return;
+        
+        UserHedge storage hedge = userHedges[user];
+        
+        // If hedge exists, close it first
+        if (hedge.isActive) {
+            try perpsEngine.closePosition(hedge.perpsPositionId) {
+                hedge.isActive = false;
+            } catch {
+                // If close fails, skip adjustment and keep old hedge
+                return;
+            }
+        }
+        
+        // Open new hedge with current collateral amount
+        uint256 targetHedgedAmount = (currentCollateral * hedgeRatio) / 10000;
+        uint256 targetPerpsCollateral = targetHedgedAmount / hedgeLeverage;
+        
+        // Check if we have enough balance
+        uint256 availableBalance = perpsVault.getAvailableBalance(address(this));
+        if (availableBalance < targetPerpsCollateral) {
+            // Not enough balance, skip hedging
+            return;
+        }
+        
+        _openNewHedge(user, currentCollateral, targetHedgedAmount, targetPerpsCollateral);
+    }
+    
+    /**
+     * @notice Open a new hedge position
+     * @dev Internal helper for _adjustHedgePosition
+     */
+    function _openNewHedge(address user, uint256 collateralAmount, uint256 hedgedAmount, uint256 perpsCollateral) internal {
+        // Check if vault has enough balance in perps vault
+        uint256 availableBalance = perpsVault.getAvailableBalance(address(this));
+        if (availableBalance < perpsCollateral) {
+            // Not enough balance, skip hedging
+            return;
+        }
+        
+        // Open SHORT position (hedge against HBAR price drop)
+        bytes32 positionId = perpsVault.openPositionForVault(
+            false,              // SHORT
+            perpsCollateral,    // collateral amount
+            hedgeLeverage       // 1x leverage
+        );
+        
+        // Get entry price
+        uint256 entryPrice = priceOracle.getPrice("HBAR");
+        
+        // Store hedge info
+        userHedges[user] = UserHedge({
+            perpsPositionId: positionId,
+            collateralAmount: collateralAmount,
+            hedgedAmount: hedgedAmount,
+            perpsCollateral: perpsCollateral,
+            entryPrice: entryPrice,
+            timestamp: block.timestamp,
+            isActive: true
+        });
+        
+        emit HedgeOpened(user, positionId, hedgedAmount);
+    }
+    
+    /**
+     * @notice Close hedge position when user withdraws all
+     * @param withdrawCollateral Whether to withdraw collateral from perps vault
+     */
+    function _closeHedgePosition(address user, bool withdrawCollateral) internal {
+        UserHedge storage hedge = userHedges[user];
+        if (!hedge.isActive) return;
+        
+        // Close perps position
+        perpsEngine.closePosition(hedge.perpsPositionId);
+        
+        // Only withdraw if requested (e.g., when user fully exits)
+        if (withdrawCollateral) {
+            uint256 perpsBalance = perpsVault.getAvailableBalance(address(this));
+            if (perpsBalance > 0) {
+                perpsVault.withdrawCollateral(perpsBalance);
+            }
+        }
+        
+        // Mark hedge as inactive
+        hedge.isActive = false;
+        
+        emit HedgeClosed(user, hedge.perpsPositionId, 0);
+    }
+    
+    /**
+     * @notice Get user's effective collateral including hedge P&L
+     */
+    function getEffectiveCollateral(address user) public view returns (uint256) {
+        uint256 collateral = userCollateral[user];
+        UserHedge memory hedge = userHedges[user];
+        
+        if (!hedge.isActive || address(perpsEngine) == address(0)) return collateral;
+        
+        // Get position info from perps engine
+        (
+            bool isLong,
+            uint256 size,
+            ,  // collateral
+            ,  // leverage
+            uint256 entryPrice,
+            uint256 currentPrice,
+            ,  // unrealizedPnL
+            ,  // liquidationPrice
+               // marginRatio
+        ) = perpsEngine.getPositionInfoById(hedge.perpsPositionId);
+        
+        if (size == 0) return collateral;
+        
+        // Calculate P&L (SHORT position)
+        int256 priceDiff = int256(entryPrice) - int256(currentPrice);
+        int256 pnl = (int256(size) * priceDiff) / int256(entryPrice);
+        
+        // Add P&L to collateral
+        if (pnl >= 0) {
+            return collateral + uint256(pnl);
+        } else {
+            uint256 loss = uint256(-pnl);
+            return collateral > loss ? collateral - loss : 0;
+        }
+    }
+    
+    /**
+     * @notice Get user's hedge position details
+     */
+    function getUserHedgeInfo(address user) external view returns (
+        bool isActive,
+        uint256 hedgedAmount,
+        uint256 entryPrice,
+        uint256 currentPrice,
+        int256 pnl,
+        uint256 effectiveCollateral
+    ) {
+        UserHedge memory hedge = userHedges[user];
+        isActive = hedge.isActive;
+        hedgedAmount = hedge.hedgedAmount;
+        entryPrice = hedge.entryPrice;
+        
+        if (!isActive || address(perpsEngine) == address(0)) {
+            return (false, 0, 0, 0, 0, userCollateral[user]);
+        }
+        
+        // Get position info from perps engine
+        (
+            ,  // isLong
+            uint256 size,
+            ,  // collateral
+            ,  // leverage
+            uint256 posEntryPrice,
+            uint256 posCurrentPrice,
+            ,  // unrealizedPnL
+            ,  // liquidationPrice
+               // marginRatio
+        ) = perpsEngine.getPositionInfoById(hedge.perpsPositionId);
+        
+        currentPrice = posCurrentPrice;
+        
+        if (size > 0) {
+            int256 priceDiff = int256(posEntryPrice) - int256(currentPrice);
+            pnl = (int256(size) * priceDiff) / int256(posEntryPrice);
+        } else {
+            pnl = 0;
+        }
+        
+        effectiveCollateral = getEffectiveCollateral(user);
     }
     
     /**
@@ -488,6 +826,16 @@ contract PrismVaultV2 {
      */
     function weiToTinybars(uint256 weiAmount) public pure returns (uint256) {
         return weiAmount / WEI_PER_TINYBAR;
+    }
+    
+    /**
+     * @notice Fund perps vault for hedging operations
+     * @dev Admin can pre-fund the perps vault so it has liquidity for opening hedge positions
+     */
+    function fundPerpsVault() external payable onlyAdmin {
+        require(address(perpsVault) != address(0), "Perps vault not set");
+        require(msg.value > 0, "Must send HBAR");
+        perpsVault.depositCollateral{value: msg.value}();
     }
     
     // Receive HBAR
