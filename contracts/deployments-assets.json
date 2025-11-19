@@ -13,6 +13,7 @@
   "hcsTopicId": "7255836",
   "hcsTopicUrl": "https://hashscan.io/testnet/topic/0.0.7255836",
   "reserveOracleDeployedAt": "2025-11-14T03:04:13.969Z",
-  "vault": "0xD2852dEd28F7DaD7BaeDacD6C16EdaaC2542820A",
-  "vaultDeployedAt": "2025-11-14T03:04:47.187Z"
+  "vault": "0x229872fEB1c729ceAFFC71cd00B28e0111A49706",
+  "vaultDeployedAt": "2025-11-14T03:04:47.187Z",
+  "vaultUpdatedWithYield": "2025-11-14T05:30:00.000Z"
 }

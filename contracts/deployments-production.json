@@ -1,0 +1,234 @@
+{
+  "network": "testnet",
+  "deployedAt": "2025-11-17T15:19:28.897Z",
+  "note": "PRODUCTION: All 12 currencies with liquidity pools",
+  "currencies": {
+    "pUSD": {
+      "tokenId": "0.0.7275004",
+      "solidityAddress": "00000000000000000000000000000000006f01fc",
+      "name": "Prism United States Dollar",
+      "pair": null
+    },
+    "pEUR": {
+      "tokenId": "0.0.7275005",
+      "solidityAddress": "00000000000000000000000000000000006f01fd",
+      "name": "Prism Euro",
+      "pair": "EUR/USD"
+    },
+    "pGBP": {
+      "tokenId": "0.0.7275006",
+      "solidityAddress": "00000000000000000000000000000000006f01fe",
+      "name": "Prism British Pound Sterling",
+      "pair": "GBP/USD"
+    },
+    "pJPY": {
+      "tokenId": "0.0.7275007",
+      "solidityAddress": "00000000000000000000000000000000006f01ff",
+      "name": "Prism Japanese Yen",
+      "pair": "JPY/USD"
+    },
+    "pAUD": {
+      "tokenId": "0.0.7275008",
+      "solidityAddress": "00000000000000000000000000000000006f0200",
+      "name": "Prism Australian Dollar",
+      "pair": "AUD/USD"
+    },
+    "pCAD": {
+      "tokenId": "0.0.7275009",
+      "solidityAddress": "00000000000000000000000000000000006f0201",
+      "name": "Prism Canadian Dollar",
+      "pair": "CAD/USD"
+    },
+    "pCHF": {
+      "tokenId": "0.0.7275010",
+      "solidityAddress": "00000000000000000000000000000000006f0202",
+      "name": "Prism Swiss Franc",
+      "pair": "CHF/USD"
+    },
+    "pCNY": {
+      "tokenId": "0.0.7275011",
+      "solidityAddress": "00000000000000000000000000000000006f0203",
+      "name": "Prism Chinese Yuan",
+      "pair": "CNY/USD"
+    },
+    "pNZD": {
+      "tokenId": "0.0.7275012",
+      "solidityAddress": "00000000000000000000000000000000006f0204",
+      "name": "Prism New Zealand Dollar",
+      "pair": "NZD/USD"
+    },
+    "pPHP": {
+      "tokenId": "0.0.7275013",
+      "solidityAddress": "00000000000000000000000000000000006f0205",
+      "name": "Prism Philippine Peso",
+      "pair": "PHP/USD"
+    },
+    "pSGD": {
+      "tokenId": "0.0.7275014",
+      "solidityAddress": "00000000000000000000000000000000006f0206",
+      "name": "Prism Singapore Dollar",
+      "pair": "SGD/USD"
+    },
+    "pTRY": {
+      "tokenId": "0.0.7275015",
+      "solidityAddress": "00000000000000000000000000000000006f0207",
+      "name": "Prism Turkish Lira",
+      "pair": "TRY/USD"
+    },
+    "HBAR": {
+      "tokenId": "HBAR",
+      "solidityAddress": "0x0000000000000000000000000000000000000000",
+      "name": "Hedera",
+      "symbol": "HBAR",
+      "pair": "HBAR/USD"
+    }
+  },
+  "pools": {
+    "pUSD/pEUR": {
+      "contractId": "0.0.7278005",
+      "poolAddress": "0x00000000000000000000000000000000006f0db5",
+      "tokenA": "pUSD",
+      "tokenB": "pEUR",
+      "pair": "EUR/USD"
+    },
+    "pUSD/pGBP": {
+      "contractId": "0.0.7278006",
+      "poolAddress": "0x00000000000000000000000000000000006f0db6",
+      "tokenA": "pUSD",
+      "tokenB": "pGBP",
+      "pair": "GBP/USD"
+    },
+    "pUSD/pJPY": {
+      "contractId": "0.0.7278007",
+      "poolAddress": "0x00000000000000000000000000000000006f0db7",
+      "tokenA": "pUSD",
+      "tokenB": "pJPY",
+      "pair": "JPY/USD"
+    },
+    "pUSD/pAUD": {
+      "contractId": "0.0.7278008",
+      "poolAddress": "0x00000000000000000000000000000000006f0db8",
+      "tokenA": "pUSD",
+      "tokenB": "pAUD",
+      "pair": "AUD/USD"
+    },
+    "pUSD/pCAD": {
+      "contractId": "0.0.7278009",
+      "poolAddress": "0x00000000000000000000000000000000006f0db9",
+      "tokenA": "pUSD",
+      "tokenB": "pCAD",
+      "pair": "CAD/USD"
+    },
+    "pUSD/pCHF": {
+      "contractId": "0.0.7278010",
+      "poolAddress": "0x00000000000000000000000000000000006f0dba",
+      "tokenA": "pUSD",
+      "tokenB": "pCHF",
+      "pair": "CHF/USD"
+    },
+    "pUSD/pCNY": {
+      "contractId": "0.0.7278011",
+      "poolAddress": "0x00000000000000000000000000000000006f0dbb",
+      "tokenA": "pUSD",
+      "tokenB": "pCNY",
+      "pair": "CNY/USD"
+    },
+    "pUSD/pNZD": {
+      "contractId": "0.0.7278013",
+      "poolAddress": "0x00000000000000000000000000000000006f0dbd",
+      "tokenA": "pUSD",
+      "tokenB": "pNZD",
+      "pair": "NZD/USD"
+    },
+    "pUSD/pPHP": {
+      "contractId": "0.0.7275025",
+      "poolAddress": "0x00000000000000000000000000000000006f0211",
+      "tokenA": "pUSD",
+      "tokenB": "pPHP",
+      "pair": "PHP/USD"
+    },
+    "pUSD/pSGD": {
+      "contractId": "0.0.7278014",
+      "poolAddress": "0x00000000000000000000000000000000006f0dbe",
+      "tokenA": "pUSD",
+      "tokenB": "pSGD",
+      "pair": "SGD/USD"
+    },
+    "pUSD/pTRY": {
+      "contractId": "0.0.7278015",
+      "poolAddress": "0x00000000000000000000000000000000006f0dbf",
+      "tokenA": "pUSD",
+      "tokenB": "pTRY",
+      "pair": "TRY/USD"
+    },
+    "HBAR/pUSD": {
+      "contractId": "0.0.7277722",
+      "poolAddress": "0x00000000000000000000000000000000006f0c9a",
+      "tokenA": "HBAR",
+      "tokenB": "pUSD",
+      "pair": "HBAR/USD",
+      "liquidityHBAR": "100",
+      "liquidityPUSD": "5"
+    }
+  },
+  "testResults": {
+    "pUSD/pEUR": {
+      "status": "SUCCESS",
+      "liquidityAdded": true,
+      "swapTested": true
+    },
+    "pUSD/pGBP": {
+      "status": "SUCCESS",
+      "liquidityAdded": true,
+      "swapTested": true
+    },
+    "pUSD/pJPY": {
+      "status": "SUCCESS",
+      "liquidityAdded": true,
+      "swapTested": true
+    },
+    "pUSD/pAUD": {
+      "status": "SUCCESS",
+      "liquidityAdded": true,
+      "swapTested": true
+    },
+    "pUSD/pCAD": {
+      "status": "SUCCESS",
+      "liquidityAdded": true,
+      "swapTested": true
+    },
+    "pUSD/pCHF": {
+      "status": "SUCCESS",
+      "liquidityAdded": true,
+      "swapTested": true
+    },
+    "pUSD/pCNY": {
+      "status": "SUCCESS",
+      "liquidityAdded": true,
+      "swapTested": true
+    },
+    "pUSD/pNZD": {
+      "status": "SUCCESS",
+      "liquidityAdded": true,
+      "swapTested": true
+    },
+    "pUSD/pPHP": {
+      "status": "FAILED",
+      "error": "receipt for transaction 0.0.6362296@1763392860.757976573 contained error status CONTRACT_REVERT_EXECUTED"
+    },
+    "pUSD/pSGD": {
+      "status": "SUCCESS",
+      "liquidityAdded": true,
+      "swapTested": true
+    },
+    "pUSD/pTRY": {
+      "status": "SUCCESS",
+      "liquidityAdded": true,
+      "swapTested": true
+    }
+  },
+  "router": {
+    "contractId": "0.0.7278792",
+    "routerAddress": "0x00000000000000000000000000000000006f10c8"
+  }
+}
