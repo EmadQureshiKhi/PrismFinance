@@ -1,0 +1,19 @@
+{
+  "network": "testnet",
+  "assetOracleManager": "0xf352c354A78Aa30a6D21845D5f55045a37b11092",
+  "oracleAddress": "0x3B8453702Fb96a48f29438623FeCb70a2c014923",
+  "owner": "0x9Bf9a6868d05ae19E1A3e4366eB911f7B31F26dA",
+  "deployer": "0x9Bf9a6868d05ae19E1A3e4366eB911f7B31F26dA",
+  "deployedAt": "2025-11-19T13:35:42.740Z",
+  "blockNumber": 27756412,
+  "supportedAssets": [
+    "HBAR",
+    "BTC",
+    "ETH",
+    "TSLA",
+    "AAPL",
+    "SPY",
+    "GOLD",
+    "TBILL"
+  ]
+}

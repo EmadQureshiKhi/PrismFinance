@@ -15,5 +15,8 @@
   "reserveOracleDeployedAt": "2025-11-14T03:04:13.969Z",
   "vault": "0x229872fEB1c729ceAFFC71cd00B28e0111A49706",
   "vaultDeployedAt": "2025-11-14T03:04:47.187Z",
-  "vaultUpdatedWithYield": "2025-11-14T05:30:00.000Z"
+  "vaultUpdatedWithYield": "2025-11-14T05:30:00.000Z",
+  "assetOracleManager": "0xf352c354A78Aa30a6D21845D5f55045a37b11092",
+  "assetOracleManagerDeployedAt": "2025-11-19T13:42:00.000Z",
+  "assetExchangeOracleUpdatedAt": "2025-11-19T14:05:00.000Z"
 }
