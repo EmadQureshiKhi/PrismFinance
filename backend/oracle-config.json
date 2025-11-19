@@ -1,0 +1,22 @@
+{
+  "oracleAddress": "0x17ef7cF5E5Fc0785d6d3D83D74C7c6BFa8932404",
+  "generatedAt": "2025-11-16T18:35:07.883Z",
+  "network": "testnet",
+  "feeds": [
+    "AUD/USD",
+    "CAD/USD",
+    "CHF/USD",
+    "CNY/USD",
+    "EUR/USD",
+    "GBP/USD",
+    "JPY/USD",
+    "NZD/USD",
+    "PHP/USD",
+    "SGD/USD",
+    "TRY/USD",
+    "BTC/USD",
+    "ETH/USD",
+    "XAU/USD"
+  ],
+  "note": "Use this oracle address when deploying OracleManager contract"
+}
