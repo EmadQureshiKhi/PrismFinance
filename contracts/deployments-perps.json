@@ -1,0 +1,7 @@
+{
+  "network": "testnet",
+  "vault": "0x27a319a5bC565D247CB65bfc8e6885b725558fDf",
+  "engine": "0x2A0fB996E5105E2D7E989ff316439EcF5d3a1612",
+  "priceOracle": "0x1050eb5E510E6d9D747fEeD6E32B76D4061896F4",
+  "timestamp": "2025-11-15T04:32:31.506Z"
+}

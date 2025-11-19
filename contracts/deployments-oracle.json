@@ -1,0 +1,10 @@
+{
+  "network": "testnet",
+  "evmAddress": "0x193412f70e3cafEc1C064ae3F99eBa4522785161",
+  "hederaContractId": "0.0.7271067",
+  "oracleAddress": "0x17ef7cF5E5Fc0785d6d3D83D74C7c6BFa8932404",
+  "owner": "0x9Bf9a6868d05ae19E1A3e4366eB911f7B31F26dA",
+  "deployer": "0x9Bf9a6868d05ae19E1A3e4366eB911f7B31F26dA",
+  "deployedAt": "2025-11-16T20:16:05.950Z",
+  "blockNumber": 27638823
+}

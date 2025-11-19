@@ -1,0 +1,18 @@
+{
+  "network": "testnet",
+  "timestamp": "2025-11-16T07:01:13.768Z",
+  "contracts": {
+    "perpsVault": "0x0756B2586E18A5Fe98dc909d43fcD162C803a455",
+    "perpsEngine": "0xC19B79cFc317CB9364dcAf2cFf899207Ad423C6c",
+    "vault": "0x3A2c3d52A61Bf0d09f6c231C2e404b8cF76e7Ce6",
+    "priceOracle": "0x1050eb5E510E6d9D747fEeD6E32B76D4061896F4",
+    "reserveOracle": "0xb1C70B19082d470829e88D784bA05C105300047a",
+    "hbarxToken": "0x0000000000000000000000000000000000220ced"
+  },
+  "settings": {
+    "hedgingEnabled": true,
+    "hedgeRatio": "90%",
+    "hedgeLeverage": "1x",
+    "dynamicHedgeAdjustment": true
+  }
+}
