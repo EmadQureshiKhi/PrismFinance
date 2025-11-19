@@ -312,6 +312,56 @@ export const useVault = (): VaultHook => {
     }
   }, [connection, getVaultContract, refreshPosition]);
 
+  // Withdraw collateral (when you have no debt)
+  const withdrawCollateral = useCallback(async (
+    withdrawAmount: string
+  ) => {
+    if (!connection) throw new Error("Wallet not connected");
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Convert amount to wei
+      const withdrawWei = ethers.parseEther(withdrawAmount);
+
+      const vault = await getVaultContract(true);
+
+      console.log("Withdrawing collateral...");
+      console.log("  Amount:", withdrawAmount, "HBAR");
+
+      const tx = await vault.withdrawCollateral(withdrawWei);
+      console.log("Transaction sent:", tx.hash);
+
+      const receipt = await tx.wait();
+      console.log("✅ Withdrawal completed:", receipt);
+
+      // Refresh position
+      await refreshPosition();
+      
+      // Log transaction to database
+      if (receipt?.hash && connection.account.accountId) {
+        await db.logVaultTransaction({
+          walletAddress: connection.account.accountId,
+          type: 'withdraw',
+          hbarAmount: withdrawAmount,
+          txHash: receipt.hash,
+          blockNumber: receipt.blockNumber?.toString(),
+        });
+      }
+      
+      console.log("✅ Collateral withdrawal completed successfully!");
+
+      return receipt;
+    } catch (err: any) {
+      console.error("Error in withdrawCollateral:", err);
+      setError(err.message || "Failed to withdraw collateral");
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [connection, getVaultContract, refreshPosition]);
+
   // Burn tokens and withdraw HBAR
   const burnAndWithdraw = useCallback(async (
     tokenSymbol: string,
@@ -603,6 +653,7 @@ export const useVault = (): VaultHook => {
     getMaxMintable,
     error,
     depositAndMint,
+    withdrawCollateral,
     burnAndWithdraw,
     refreshPosition,
     // Yield functions

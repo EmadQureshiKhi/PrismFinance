@@ -45,7 +45,7 @@ const VaultInterface = () => {
   const [tokenAmount, setTokenAmount] = useState("");
 
   // Use vault hook for real data
-  const { userPosition, isLoading, error, depositAndMint, burnAndWithdraw, getMaxMintable } = useVault();
+  const { userPosition, isLoading, error, depositAndMint, burnAndWithdraw, withdrawCollateral, getMaxMintable } = useVault();
   const { connection } = useWallet();
   const { showSuccess, showError } = useToast();
 
@@ -221,7 +221,9 @@ const VaultInterface = () => {
       return;
     }
 
-    if (vaultMode === "withdraw" && (!tokenAmount || parseFloat(tokenAmount) <= 0)) {
+    // For withdraw mode, check if user has debt
+    const currentDebt = parseFloat(userPosition?.debt || "0");
+    if (vaultMode === "withdraw" && currentDebt > 0 && (!tokenAmount || parseFloat(tokenAmount) <= 0)) {
       setValidationError("Please enter token amount to burn");
       return;
     }
@@ -240,15 +242,30 @@ const VaultInterface = () => {
           txHash
         );
       } else {
-        const result = await burnAndWithdraw(selectedToken.symbol, tokenAmount, hbarAmount);
-        txHash = result?.hash;
+        // Check if user has any debt
+        const currentDebt = parseFloat(userPosition?.debt || "0");
         
-        // Show success toast
-        showSuccess(
-          "Burn & Withdraw Successful!",
-          `Burned ${tokenAmount} ${selectedToken.symbol} and withdrew ${hbarAmount} HBAR`,
-          txHash
-        );
+        if (currentDebt === 0 && (!tokenAmount || parseFloat(tokenAmount) === 0)) {
+          // No debt - just withdraw collateral
+          const result = await withdrawCollateral(hbarAmount);
+          txHash = result?.hash;
+          
+          showSuccess(
+            "Withdrawal Successful!",
+            `Withdrew ${hbarAmount} HBAR collateral`,
+            txHash
+          );
+        } else {
+          // Has debt - burn and withdraw
+          const result = await burnAndWithdraw(selectedToken.symbol, tokenAmount, hbarAmount);
+          txHash = result?.hash;
+          
+          showSuccess(
+            "Burn & Withdraw Successful!",
+            `Burned ${tokenAmount} ${selectedToken.symbol} and withdrew ${hbarAmount} HBAR`,
+            txHash
+          );
+        }
       }
       
       // Clear inputs on success
@@ -986,9 +1003,9 @@ const VaultInterface = () => {
           `}
           disabled={
             !hbarAmount ||
-            !tokenAmount ||
             parseFloat(hbarAmount) <= 0 ||
-            parseFloat(tokenAmount) <= 0 ||
+            (vaultMode === "withdraw" && parseFloat(userPosition?.debt || "0") > 0 && (!tokenAmount || parseFloat(tokenAmount) <= 0)) ||
+            (vaultMode === "deposit" && (!tokenAmount || parseFloat(tokenAmount) <= 0)) ||
             isLoading ||
             !!validationError
           }
