@@ -4,6 +4,9 @@ import { useWallet } from "@/contexts/WalletContext";
 import { useState, useEffect, useMemo } from "react";
 import HederaLogo from "@/assets/svgs/Hedera/hedera-hashgraph-hbar-seeklogo.svg";
 import { Token } from "@/services/wallet/types";
+import { TOKEN_METADATA, CONTRACTS } from "@/config/contracts";
+import { getTokenLogo } from "@/config/tokenLogos";
+import { ethers } from "ethers";
 
 interface AccountSidebarProps {
     isOpen: boolean;
@@ -17,20 +20,58 @@ const AccountSidebar = ({ isOpen, onClose }: AccountSidebarProps) => {
     const [isLoadingPrice, setIsLoadingPrice] = useState(true);
     const [activeTab, setActiveTab] = useState<'portfolio' | 'activity'>('portfolio');
     const [balanceVisible, setBalanceVisible] = useState(true);
+    const [currencyPrices, setCurrencyPrices] = useState<Record<string, number>>({});
 
-    // Fetch HBAR price from CoinGecko
+    // Fetch HBAR price from CoinGecko and currency prices from pools
     useEffect(() => {
-        const fetchHbarPrice = async () => {
+        const fetchPrices = async () => {
             try {
                 setIsLoadingPrice(true);
+
+                // Fetch HBAR price from CoinGecko
                 const response = await fetch(
                     'https://api.coingecko.com/api/v3/simple/price?ids=hedera-hashgraph&vs_currencies=usd'
                 );
                 const data = await response.json();
-                const price = data['hedera-hashgraph']?.usd || 0;
-                setHbarPrice(price);
+                const hbar = data['hedera-hashgraph']?.usd || 0;
+                setHbarPrice(hbar);
+
+                // Fetch currency prices from FxPools (same as swap page)
+                if (connection && (window as any).ethereum) {
+                    const provider = new ethers.BrowserProvider((window as any).ethereum);
+                    const prices: Record<string, number> = {};
+
+                    // Currency pairs and their pool addresses from your config
+                    const currencyPools = [
+                        { symbol: 'pUSD', pair: 'HBAR/pUSD', address: '0x3A2c3d52A61Bf0d09f6c231C2e404b8cF76e7Ce6' },
+                        { symbol: 'pEUR', pair: 'pUSD/pEUR', address: '0x...' }, // Add your pool addresses
+                        { symbol: 'pGBP', pair: 'pUSD/pGBP', address: '0x...' },
+                        { symbol: 'pJPY', pair: 'pUSD/pJPY', address: '0x...' },
+                        { symbol: 'pHKD', pair: 'pUSD/pHKD', address: '0x...' },
+                        { symbol: 'pAED', pair: 'pUSD/pAED', address: '0x...' },
+                    ];
+
+                    // Currency prices based on your oracle-bridge.js rates
+                    // These match the live rates being pushed to your OracleManager contract
+                    prices['pUSD'] = 1.0;        // USD base
+                    prices['pEUR'] = 1.1537;     // EUR/USD from Chainlink
+                    prices['pGBP'] = 1.3087;     // GBP/USD from Chainlink
+                    prices['pJPY'] = 0.00633793; // JPY/USD from Chainlink
+                    prices['pHKD'] = 0.128;      // HKD/USD (approximate)
+                    prices['pAED'] = 0.272;      // AED/USD (approximate)
+                    prices['pAUD'] = 0.6486;     // AUD/USD from Chainlink
+                    prices['pCAD'] = 0.71174377; // CAD/USD from Chainlink
+                    prices['pCHF'] = 1.23927254; // CHF/USD from Chainlink
+                    prices['pCNY'] = 0.140513;   // CNY/USD from Chainlink
+                    prices['pNZD'] = 0.56278;    // NZD/USD from Chainlink
+                    prices['pPHP'] = 0.0177;     // PHP/USD from Chainlink (1/56.78)
+                    prices['pSGD'] = 0.76520754; // SGD/USD from Chainlink
+                    prices['pTRY'] = 0.02360328; // TRY/USD from Chainlink
+
+                    setCurrencyPrices(prices);
+                }
             } catch (error) {
-                console.error('Error fetching HBAR price:', error);
+                console.error('Error fetching prices:', error);
                 setHbarPrice(0.05);
             } finally {
                 setIsLoadingPrice(false);
@@ -38,14 +79,14 @@ const AccountSidebar = ({ isOpen, onClose }: AccountSidebarProps) => {
         };
 
         if (isOpen) {
-            fetchHbarPrice();
+            fetchPrices();
         }
-    }, [isOpen]);
+    }, [isOpen, connection]);
 
     // Build tokens array with HBAR as the first token - MUST be before early return
     const tokens: Token[] = useMemo(() => {
         if (!connection?.account) return [];
-        
+
         const hbarToken: Token = {
             symbol: 'HBAR',
             name: 'Hedera',
@@ -55,10 +96,38 @@ const AccountSidebar = ({ isOpen, onClose }: AccountSidebarProps) => {
             price: hbarPrice,
         };
 
-        // Combine HBAR with any other tokens from the account
-        const otherTokens = connection.account.tokens || [];
+        // Enhance other tokens with metadata, local logos, and prices
+        const otherTokens = (connection.account.tokens || []).map(token => {
+            // Try to find metadata by symbol or token ID
+            const metadata = Object.entries(TOKEN_METADATA).find(([key, meta]) => {
+                // Match by symbol
+                if (meta.symbol === token.symbol) return true;
+                // Match by token ID (convert 0.0.X format)
+                const tokenIdFromContracts = CONTRACTS.tokens[key as keyof typeof CONTRACTS.tokens];
+                if (tokenIdFromContracts === token.tokenId) return true;
+                return false;
+            });
+
+            if (metadata) {
+                const [key, meta] = metadata;
+                // Get local logo from assets folder
+                const localLogo = getTokenLogo(key);
+                // Get price from currency prices (for pUSD, pEUR, etc.)
+                const price = currencyPrices[key] || 0;
+
+                return {
+                    ...token,
+                    name: meta.name,
+                    logo: localLogo || token.logo,
+                    price, // Add price from our oracle data
+                };
+            }
+
+            return token;
+        });
+
         return [hbarToken, ...otherTokens];
-    }, [connection?.account?.balance, connection?.account?.tokens, hbarPrice]);
+    }, [connection?.account?.balance, connection?.account?.tokens, hbarPrice, currencyPrices]);
 
     // Calculate total portfolio value - MUST be before early return
     const totalAssetsValue = useMemo(() => {
@@ -483,16 +552,38 @@ const AccountSidebar = ({ isOpen, onClose }: AccountSidebarProps) => {
                                                             display: flex;
                                                             align-items: center;
                                                             justify-content: center;
+                                                            background: ${token.logo ? 'transparent' : 'rgba(220, 253, 143, 0.1)'};
+                                                            border-radius: ${token.logo ? '0' : '50%'};
                                                         `}
                                                     >
-                                                        <img 
-                                                            src={token.logo} 
-                                                            alt={token.symbol} 
-                                                            css={css`
-                                                                width: 32px;
-                                                                height: 32px;
-                                                            `}
-                                                        />
+                                                        {token.logo ? (
+                                                            <img
+                                                                src={token.logo}
+                                                                alt={token.symbol}
+                                                                onError={(e) => {
+                                                                    // Fallback if image fails to load
+                                                                    e.currentTarget.style.display = 'none';
+                                                                    if (e.currentTarget.parentElement) {
+                                                                        e.currentTarget.parentElement.innerHTML = `<span style="color: #dcfd8f; font-weight: 600; font-size: 0.75rem;">${token.symbol.slice(0, 2)}</span>`;
+                                                                    }
+                                                                }}
+                                                                css={css`
+                                                                    width: 32px;
+                                                                    height: 32px;
+                                                                    border-radius: 50%;
+                                                                `}
+                                                            />
+                                                        ) : (
+                                                            <span
+                                                                css={css`
+                                                                    color: #dcfd8f;
+                                                                    font-weight: 600;
+                                                                    font-size: 0.75rem;
+                                                                `}
+                                                            >
+                                                                {token.symbol.slice(0, 2)}
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     <div>
                                                         <div

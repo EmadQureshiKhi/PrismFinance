@@ -53,11 +53,12 @@ const AppSidebar = ({ activePage, onPageChange }: AppSidebarProps) => {
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activePage === item.id;
+            const isGovernance = item.id === "governance";
 
             return (
               <li key={item.id}>
                 <button
-                  onClick={() => onPageChange(item.id)}
+                  onClick={isGovernance ? undefined : () => onPageChange(item.id)}
                   css={css`
                     width: 100%;
                     display: flex;
