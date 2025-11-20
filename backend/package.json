@@ -6,7 +6,11 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "oracle": "node oracle-bridge.js",
+    "oracle:resilient": "node start-oracle-resilient.js",
+    "asset-oracle": "node asset-oracle-bridge.js",
+    "asset-oracle:resilient": "node start-asset-oracle-resilient.js"
   },
   "dependencies": {
     "@hashgraph/sdk": "^2.76.0",
