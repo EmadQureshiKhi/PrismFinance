@@ -20,7 +20,10 @@ export default function TokenSelector({ selectedToken, onSelectToken, currencies
   const [showDropdown, setShowDropdown] = useState(false);
 
   return (
-    <div css={css`position: relative;`}>
+    <div css={css`
+      position: relative;
+      z-index: ${showDropdown ? 9999 : 1};
+    `}>
       <button
         onClick={() => setShowDropdown(!showDropdown)}
         css={css`
@@ -64,7 +67,7 @@ export default function TokenSelector({ selectedToken, onSelectToken, currencies
             min-width: 250px;
             max-height: 400px;
             overflow-y: auto;
-            z-index: 1000;
+            z-index: 10000;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
             
             /* Custom scrollbar */

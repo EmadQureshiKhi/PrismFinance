@@ -3,6 +3,15 @@ import { X, MagnifyingGlass } from "@phosphor-icons/react";
 import { useState } from "react";
 import { FxCurrency } from "@/hooks/useFxSwap";
 
+// Import currency logos
+import HBARLogo from "@/assets/svgs/hedera/hedera-hashgraph-hbar-seeklogo.svg";
+import pUSDLogo from "@/assets/RWA/pUSD.png";
+import pEURLogo from "@/assets/RWA/pEUR.png";
+import pGBPLogo from "@/assets/RWA/pGBP.png";
+import pJPYLogo from "@/assets/RWA/PJPY.png";
+import pHKDLogo from "@/assets/RWA/pHKD.png";
+import pAEDLogo from "@/assets/RWA/pAED.png";
+
 interface CurrencySelectorProps {
   currencies: FxCurrency[];
   selectedCurrency: FxCurrency | null;
@@ -10,6 +19,21 @@ interface CurrencySelectorProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+// Function to get the appropriate logo for each currency
+const getCurrencyLogo = (symbol: string): string => {
+  const logoMap: { [key: string]: string } = {
+    'HBAR': HBARLogo,
+    'pUSD': pUSDLogo,
+    'pEUR': pEURLogo,
+    'pGBP': pGBPLogo,
+    'pJPY': pJPYLogo,
+    'pHKD': pHKDLogo,
+    'pAED': pAEDLogo,
+  };
+
+  return logoMap[symbol] || '';
+};
 
 const CurrencySelector = ({
   currencies,
@@ -22,11 +46,31 @@ const CurrencySelector = ({
 
   if (!isOpen) return null;
 
-  const filteredCurrencies = currencies.filter(
-    (currency) =>
-      currency.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      currency.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredCurrencies = currencies
+    .filter(
+      (currency) =>
+        currency.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        currency.name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      // Define the preferred order
+      const preferredOrder = ['HBAR', 'pUSD', 'pEUR', 'pGBP'];
+
+      const aIndex = preferredOrder.indexOf(a.symbol);
+      const bIndex = preferredOrder.indexOf(b.symbol);
+
+      // If both are in preferred order, sort by their position
+      if (aIndex !== -1 && bIndex !== -1) {
+        return aIndex - bIndex;
+      }
+
+      // If only one is in preferred order, it comes first
+      if (aIndex !== -1) return -1;
+      if (bIndex !== -1) return 1;
+
+      // If neither is in preferred order, sort alphabetically
+      return a.symbol.localeCompare(b.symbol);
+    });
 
   return (
     <div
@@ -203,8 +247,8 @@ const CurrencySelector = ({
                     : "transparent"};
                   border: 1px solid
                     ${selectedCurrency?.symbol === currency.symbol
-                      ? "rgba(220, 253, 143, 0.3)"
-                      : "transparent"};
+                    ? "rgba(220, 253, 143, 0.3)"
+                    : "transparent"};
                   border-radius: 12px;
                   cursor: pointer;
                   transition: all 0.2s;
@@ -221,19 +265,37 @@ const CurrencySelector = ({
                   css={css`
                     width: 40px;
                     height: 40px;
-                    background: ${currency.symbol === "HBAR"
-                      ? "linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%)"
-                      : "linear-gradient(135deg, #dcfd8f 0%, #a8e063 100%)"};
                     border-radius: 50%;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    font-size: 1.25rem;
-                    font-weight: 700;
-                    color: ${currency.symbol === "HBAR" ? "#fff" : "#02302c"};
+                    background: rgba(255, 255, 255, 0.05);
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    overflow: hidden;
                   `}
                 >
-                  {currency.symbol === "HBAR" ? "Ħ" : currency.symbol.slice(1, 2)}
+                  {getCurrencyLogo(currency.symbol) ? (
+                    <img
+                      src={getCurrencyLogo(currency.symbol)}
+                      alt={currency.symbol}
+                      css={css`
+                        width: 36px;
+                        height: 36px;
+                        object-fit: contain;
+                        border-radius: 8px;
+                      `}
+                    />
+                  ) : (
+                    <div
+                      css={css`
+                        font-size: 1.25rem;
+                        font-weight: 700;
+                        color: #dcfd8f;
+                      `}
+                    >
+                      {currency.symbol.slice(0, 1)}
+                    </div>
+                  )}
                 </div>
 
                 {/* Currency Info */}

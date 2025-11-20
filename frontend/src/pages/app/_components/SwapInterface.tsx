@@ -15,6 +15,15 @@ import { SwapRoute, HederaToken } from "@/services/dex/types";
 import { ethers } from "ethers";
 import React from "react";
 
+// Import currency logos for the main interface
+import HBARLogo from "@/assets/svgs/hedera/hedera-hashgraph-hbar-seeklogo.svg";
+import pUSDLogo from "@/assets/RWA/pUSD.png";
+import pEURLogo from "@/assets/RWA/pEUR.png";
+import pGBPLogo from "@/assets/RWA/pGBP.png";
+import pJPYLogo from "@/assets/RWA/PJPY.png";
+import pHKDLogo from "@/assets/RWA/pHKD.png";
+import pAEDLogo from "@/assets/RWA/pAED.png";
+
 // Hedera native tokens for Market swap
 const tokens = [
   { symbol: "HBAR", name: "Hedera", logo: "ℏ" },
@@ -354,6 +363,21 @@ const SwapInterface = () => {
     return item.symbol || '...';
   };
 
+  // Get currency logo
+  const getCurrencyLogo = (symbol: string): string => {
+    const logoMap: { [key: string]: string } = {
+      'HBAR': HBARLogo,
+      'pUSD': pUSDLogo,
+      'pEUR': pEURLogo,
+      'pGBP': pGBPLogo,
+      'pJPY': pJPYLogo,
+      'pHKD': pHKDLogo,
+      'pAED': pAEDLogo,
+    };
+    
+    return logoMap[symbol] || '';
+  };
+
   // Auto-calculate amountB and expected LP when adding liquidity
   useEffect(() => {
     if (selectedPoolForLiquidity && liquidityAmountA && parseFloat(liquidityAmountA) > 0) {
@@ -691,6 +715,18 @@ const SwapInterface = () => {
                 }
               `}
               >
+                {swapMode === "currency" && currentFrom && getCurrencyLogo(getSymbol(currentFrom)) && (
+                  <img
+                    src={getCurrencyLogo(getSymbol(currentFrom))}
+                    alt={getSymbol(currentFrom)}
+                    css={css`
+                      width: 24px;
+                      height: 24px;
+                      object-fit: contain;
+                      border-radius: 6px;
+                    `}
+                  />
+                )}
                 <span>{getSymbol(currentFrom)}</span>
                 <CaretDown size={16} />
               </button>
@@ -843,6 +879,18 @@ const SwapInterface = () => {
                 }
               `}
               >
+                {swapMode === "currency" && currentTo && getCurrencyLogo(getSymbol(currentTo)) && (
+                  <img
+                    src={getCurrencyLogo(getSymbol(currentTo))}
+                    alt={getSymbol(currentTo)}
+                    css={css`
+                      width: 24px;
+                      height: 24px;
+                      object-fit: contain;
+                      border-radius: 6px;
+                    `}
+                  />
+                )}
                 <span>{getSymbol(currentTo)}</span>
                 <CaretDown size={16} />
               </button>
