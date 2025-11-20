@@ -73,13 +73,52 @@ const Footer = ({ children }: FooterProps) => {
                 `}
               >
                 <li>
-                  <GithubLogoIcon size={32} color="#02302c" />
+                  <a
+                    href="https://github.com/EmadQureshiKhi/PrismFinance"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    css={css`
+                      display: inline-flex;
+                      transition: opacity 0.2s ease;
+                      &:hover {
+                        opacity: 0.7;
+                      }
+                    `}
+                  >
+                    <GithubLogoIcon size={32} color="#02302c" />
+                  </a>
                 </li>
                 <li>
-                  <XLogoIcon size={32} color="#02302c" />
+                  <a
+                    href="https://x.com/thecorgod1234"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    css={css`
+                      display: inline-flex;
+                      transition: opacity 0.2s ease;
+                      &:hover {
+                        opacity: 0.7;
+                      }
+                    `}
+                  >
+                    <XLogoIcon size={32} color="#02302c" />
+                  </a>
                 </li>
                 <li>
-                  <YoutubeLogoIcon size={32} color="#02302c" />
+                  <a
+                    href="https://www.youtube.com/@emadqureshi4470"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    css={css`
+                      display: inline-flex;
+                      transition: opacity 0.2s ease;
+                      &:hover {
+                        opacity: 0.7;
+                      }
+                    `}
+                  >
+                    <YoutubeLogoIcon size={32} color="#02302c" />
+                  </a>
                 </li>
               </ul>
             </nav>
@@ -175,7 +214,7 @@ const Footer = ({ children }: FooterProps) => {
                 <li>Partnership</li>
                 <li>Apply for Listing</li>
                 <li>Apply for Farm</li>
-                <li>Apply for LARI</li>
+                <li>Apply for Prism</li>
                 <li>Bug Bounty</li>
                 <li>Governance</li>
                 <li>Merch</li>

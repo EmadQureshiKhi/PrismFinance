@@ -35,7 +35,9 @@ const featureSlides = [
       alt: "Woman walking with phone in hand",
     },
     actionTitle: "Mint currencies",
-    action: () => { },
+    action: () => {
+      window.location.href = '/app';
+    },
   },
   {
     id: "2",
@@ -47,7 +49,9 @@ const featureSlides = [
       alt: "Man and woman looking at phone together",
     },
     actionTitle: "Swap currencies",
-    action: () => { },
+    action: () => {
+      window.location.href = '/app';
+    },
   },
   {
     id: "3",
@@ -59,7 +63,9 @@ const featureSlides = [
       alt: "Woman holding cash",
     },
     actionTitle: "Browse assets",
-    action: () => { },
+    action: () => {
+      window.location.href = '/app';
+    },
   },
   {
     id: "4",
@@ -71,7 +77,9 @@ const featureSlides = [
       alt: "Woman looking at phone with company logos in background",
     },
     actionTitle: "Stake & govern",
-    action: () => { },
+    action: () => {
+      window.location.href = '/app';
+    },
   },
 ];
 

@@ -5,7 +5,12 @@ import { ArrowRightIcon } from "@phosphor-icons/react";
 
 const Hero = () => {
   return (
-    <section className="hero | content-grid">
+    <section 
+      className="hero | content-grid"
+      css={css`
+        background-color: #dcfd8f;
+      `}
+    >
       <div
         className="full-width"
         css={css`
@@ -93,7 +98,7 @@ const Hero = () => {
               size="large"
               expand
               iconRight={ArrowRightIcon}
-              onPress={() => {}}
+              onPress={() => window.location.href = '/app'}
             >
               Start now
             </Button>

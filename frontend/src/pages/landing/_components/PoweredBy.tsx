@@ -4,12 +4,19 @@ import pythLogo from "@/assets/logo_carousel/pyth logo.svg";
 import hederaLogo from "@/assets/logo_carousel/hedera logo.svg";
 import oracleLogo from "@/assets/logo_carousel/oracle logo.svg";
 import reownLogo from "@/assets/logo_carousel/reown logo.svg";
+import chainlinkBlueLogo from "@/assets/logo_carousel/Chainlink-Logo-Blue.svg";
+import hederaHashgraphLogo from "@/assets/logo_carousel/Hedera Hashgraph.png";
 
-const logos = [
+const originalLogos = [
   { src: hederaLogo, alt: "Hedera", width: "250px" },
   { src: pythLogo, alt: "Pyth Network", width: "214px" },
   { src: reownLogo, alt: "Reown", width: "200px" },
   { src: oracleLogo, alt: "Stader", width: "222px" },
+];
+
+const chainlinkLogos = [
+  { src: chainlinkBlueLogo, alt: "Chainlink", width: "220px" },
+  { src: hederaHashgraphLogo, alt: "Hedera Hashgraph", width: "220px" },
 ];
 
 const PoweredBy = () => {
@@ -36,7 +43,14 @@ const PoweredBy = () => {
         >
           Powered by
         </h2>
-        <LogoCarousel logos={logos} />
+        <LogoCarousel logos={originalLogos} />
+        <div
+          css={css`
+            margin-block-start: 3rem;
+          `}
+        >
+          <LogoCarousel logos={chainlinkLogos} />
+        </div>
       </div>
     </section>
   );

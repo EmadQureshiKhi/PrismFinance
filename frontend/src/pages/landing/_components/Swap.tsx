@@ -49,7 +49,7 @@ const Swap = () => {
               width: 10rem;
             `}
           >
-            <Button size="large" onPress={() => { }} expand>
+            <Button size="large" onPress={() => window.location.href = '/app'} expand>
               Swap now
             </Button>
           </div>

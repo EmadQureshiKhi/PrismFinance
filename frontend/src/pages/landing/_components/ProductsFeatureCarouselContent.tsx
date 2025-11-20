@@ -82,7 +82,10 @@ const ProductFeaturesCarouselContent = ({
               variant="secondary"
               color="white"
               size="large"
-              onPress={() => {}}
+              onPress={() => {
+                console.log("Button clicked for feature:", feature.title);
+                feature.action();
+              }}
             >
               {feature.actionTitle}
             </Button>
