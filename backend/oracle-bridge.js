@@ -335,12 +335,59 @@ async function start() {
   console.log(`📡 Monitoring ${Object.keys(CHAINLINK_FEEDS).length} price feeds`);
   console.log(`⏱️  Update interval: ${UPDATE_INTERVALS.default / 1000}s\n`);
   
-  // Run immediately
-  await updatePrices();
+  // Wrapper function with error handling for each update cycle
+  const safeUpdatePrices = async () => {
+    try {
+      await updatePrices();
+    } catch (error) {
+      console.error('❌ Error in update cycle:', error.message);
+      console.log('⏭️  Continuing to next cycle...\n');
+      // Don't crash - just log and continue to next cycle
+    }
+  };
   
-  // Schedule regular updates
-  setInterval(updatePrices, UPDATE_INTERVALS.default);
+  // Run immediately
+  await safeUpdatePrices();
+  
+  // Schedule regular updates with error handling
+  setInterval(safeUpdatePrices, UPDATE_INTERVALS.default);
 }
 
-// Start the oracle bridge
-start().catch(console.error);
+// Global error handlers to prevent crashes
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error.message);
+  console.log('🔄 Continuing operation...\n');
+  // Don't exit - keep running
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise);
+  console.error('   Reason:', reason);
+  console.log('🔄 Continuing operation...\n');
+  // Don't exit - keep running
+});
+
+// Graceful shutdown handlers
+process.on('SIGTERM', () => {
+  console.log('\n⚠️  Received SIGTERM, shutting down gracefully...');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('\n⚠️  Received SIGINT, shutting down gracefully...');
+  process.exit(0);
+});
+
+// Start the oracle bridge with top-level error handling
+console.log('🛡️  FxSwap Oracle Bridge with Auto-Recovery');
+console.log('   Handles network errors gracefully');
+console.log('   Continues operation on failures\n');
+
+start().catch((error) => {
+  console.error('❌ Fatal error starting oracle:', error.message);
+  console.log('🔄 Attempting restart in 10 seconds...');
+  setTimeout(() => {
+    console.log('🔄 Restarting...\n');
+    start().catch(console.error);
+  }, 10000);
+});

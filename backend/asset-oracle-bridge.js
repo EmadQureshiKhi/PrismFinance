@@ -91,12 +91,12 @@ function getHederaClient() {
   const client = process.env.HEDERA_NETWORK === 'mainnet'
     ? Client.forMainnet()
     : Client.forTestnet();
-  
+
   client.setOperator(
     process.env.HEDERA_ACCOUNT_ID,
     process.env.HEDERA_PRIVATE_KEY
   );
-  
+
   return client;
 }
 
@@ -117,7 +117,7 @@ async function fetchPythPrice(symbol) {
   try {
     const response = await fetch(`${PYTH_HERMES_API}/v2/updates/price/latest?ids[]=${feedConfig.feedId}`);
     const data = await response.json();
-    
+
     if (data.parsed && data.parsed.length > 0) {
       const priceData = data.parsed[0].price;
       return {
@@ -164,16 +164,16 @@ async function fetchPythPrice(symbol) {
 async function signPrice(symbol, price, timestamp) {
   try {
     const wallet = new ethers.Wallet(process.env.ASSET_ORACLE_PRIVATE_KEY);
-    
+
     // Create message hash (matching Solidity: keccak256(abi.encodePacked(symbol, price, timestamp)))
     const messageHash = ethers.solidityPackedKeccak256(
       ['string', 'uint256', 'uint256'],
       [symbol, price, timestamp]
     );
-    
+
     // Sign the message
     const signature = await wallet.signMessage(ethers.getBytes(messageHash));
-    
+
     return signature;
   } catch (error) {
     console.error(`❌ Error signing price for ${symbol}:`, error.message);
@@ -193,19 +193,19 @@ async function signPrice(symbol, price, timestamp) {
 function convertPriceFormat(symbol, pythPrice, pythExponent, configExponent) {
   try {
     let price = BigInt(pythPrice);
-    
+
     // Ensure positive
     if (price < 0n) {
       price = -price;
     }
-    
+
     // Pyth exponent is the actual exponent from the feed
     // Target is always 8 decimals
     const targetDecimals = 8;
     const currentDecimals = pythExponent < 0 ? -pythExponent : pythExponent;
-    
+
     let adjustedPrice;
-    
+
     if (currentDecimals === targetDecimals) {
       // Already 8 decimals
       adjustedPrice = price;
@@ -218,7 +218,7 @@ function convertPriceFormat(symbol, pythPrice, pythExponent, configExponent) {
       const scaleFactor = BigInt(10) ** BigInt(currentDecimals - targetDecimals);
       adjustedPrice = price / scaleFactor;
     }
-    
+
     return adjustedPrice.toString();
   } catch (error) {
     console.error(`❌ Error converting price format for ${symbol}:`, error);
@@ -236,18 +236,18 @@ function convertPriceFormat(symbol, pythPrice, pythExponent, configExponent) {
 async function pushToHedera(symbol, price, timestamp, signature) {
   try {
     const client = getHederaClient();
-    
+
     console.log(`📤 Pushing ${symbol} to Hedera:`);
     console.log(`   Price: ${price} (8 decimals = $${(Number(price) / 1e8).toFixed(6)})`);
     console.log(`   Timestamp: ${timestamp}`);
-    
+
     // Use EVM address directly - Hedera SDK will handle conversion
     const contractAddress = process.env.ASSET_ORACLE_MANAGER_ADDRESS;
-    
+
     // Create contract call using ContractId.fromEvmAddress
     const { ContractId } = await import('@hashgraph/sdk');
     const contractId = ContractId.fromEvmAddress(0, 0, contractAddress);
-    
+
     // Create contract call
     const tx = await new ContractExecuteTransaction()
       .setContractId(contractId)
@@ -259,14 +259,51 @@ async function pushToHedera(symbol, price, timestamp, signature) {
         .addBytes(Array.from(ethers.getBytes(signature)))
       )
       .execute(client);
-    
+
     const receipt = await tx.getReceipt(client);
     console.log(`✅ Pushed ${symbol} to Hedera: ${receipt.status}`);
-    
+
     return receipt;
   } catch (error) {
     console.error(`❌ Error pushing ${symbol} to Hedera:`, error.message);
     throw error;
+  }
+}
+
+/**
+ * Update PythPriceOracle fallback price (for Perps system)
+ * This ensures the Perps contracts get live HBAR prices
+ */
+async function updatePythOracleFallback(symbol, price) {
+  try {
+    const client = getHederaClient();
+
+    // PythPriceOracle contract address (used by Perps system)
+    const pythOracleAddress = "0x1050eb5E510E6d9D747fEeD6E32B76D4061896F4";
+
+    console.log(`📤 Updating PythOracle fallback for ${symbol}:`);
+    console.log(`   Price: ${price} (8 decimals = ${(Number(price) / 1e8).toFixed(6)})`);
+
+    const { ContractId } = await import('@hashgraph/sdk');
+    const contractId = ContractId.fromEvmAddress(0, 0, pythOracleAddress);
+
+    // Call setFallbackPrice(string symbol, uint256 price)
+    const tx = await new ContractExecuteTransaction()
+      .setContractId(contractId)
+      .setGas(200000)
+      .setFunction('setFallbackPrice', new ContractFunctionParameters()
+        .addString(symbol)
+        .addUint256(price)
+      )
+      .execute(client);
+
+    const receipt = await tx.getReceipt(client);
+    console.log(`✅ Updated PythOracle fallback for ${symbol}: ${receipt.status}`);
+
+    return receipt;
+  } catch (error) {
+    console.error(`❌ Error updating PythOracle fallback for ${symbol}:`, error.message);
+    // Don't throw - continue with other updates
   }
 }
 
@@ -282,11 +319,11 @@ function calculateDeviation(symbol, currentPrice) {
   if (!lastPrice) {
     return 0;
   }
-  
+
   const deviation = Number(
     (BigInt(currentPrice) - BigInt(lastPrice)) * 10000n / BigInt(lastPrice)
   ) / 10000;
-  
+
   return Math.abs(deviation);
 }
 
@@ -310,70 +347,74 @@ async function sendHeartbeat(symbol, timestamp) {
  */
 async function updatePrices() {
   console.log('\n🔄 Starting asset price update cycle...');
-  
+
   // Get fresh Hedera timestamp for this update cycle
   const hederaProvider = new ethers.JsonRpcProvider(
-    process.env.HEDERA_NETWORK === 'mainnet' 
+    process.env.HEDERA_NETWORK === 'mainnet'
       ? 'https://mainnet.hashio.io/api'
       : 'https://testnet.hashio.io/api'
   );
   const latestBlock = await hederaProvider.getBlock('latest');
   const hederaTimestamp = latestBlock.timestamp - 5; // 5s buffer
-  
+
   for (const symbol of Object.keys(PYTH_PRICE_FEEDS)) {
     try {
       const feedConfig = PYTH_PRICE_FEEDS[symbol];
-      
+
       // Fetch price from Pyth
       const { price, confidence, exponent, publishTime, configExponent } = await fetchPythPrice(symbol);
-      
+
       console.log(`\n📊 ${symbol} (${feedConfig.name}):`);
       console.log(`   Raw Price: ${price}`);
       console.log(`   Exponent: ${exponent} (expected: ${configExponent})`);
       console.log(`   Confidence: ${confidence}`);
       console.log(`   Pyth Updated: ${new Date(Number(publishTime) * 1000).toISOString()}`);
-      
+
       // Convert price to 8 decimals
       const adjustedPrice = convertPriceFormat(symbol, price, exponent, configExponent);
       console.log(`   Adjusted Price: ${adjustedPrice} (8 decimals = $${(Number(adjustedPrice) / 1e8).toFixed(6)})`);
-      
+
       // Calculate deviation
       const deviation = calculateDeviation(symbol, adjustedPrice);
       if (deviation > 0) {
         console.log(`   Deviation: ${(deviation * 100).toFixed(4)}%`);
       }
-      
+
       // Check if emergency update needed
       if (deviation > EMERGENCY_DEVIATION_THRESHOLD) {
         console.log(`   ⚠️  EMERGENCY UPDATE: ${(deviation * 100).toFixed(4)}% deviation`);
       }
-      
+
       // Use fresh Hedera timestamp
       const timestamp = hederaTimestamp;
-      
+
       // Sign with adjusted price and Hedera timestamp
       const signature = await signPrice(symbol, adjustedPrice, timestamp);
-      
-      // Push to Hedera
+
+      // Push to Hedera AssetOracleManager (for Assets page)
       if (process.env.ASSET_ORACLE_MANAGER_ADDRESS) {
         await pushToHedera(symbol, adjustedPrice, timestamp, signature);
       } else {
         console.log(`   ⏸️  Skipping Hedera push (ASSET_ORACLE_MANAGER_ADDRESS not set)`);
         console.log(`   Signature: ${signature.slice(0, 20)}...`);
       }
-      
+
+      // Also update PythPriceOracle fallback (for Perps system)
+      // This ensures Perps contracts get live prices for HBAR and other assets
+      await updatePythOracleFallback(symbol, adjustedPrice);
+
       // Send heartbeat
       await sendHeartbeat(symbol, timestamp);
-      
+
       // Update last price
       lastPrices[symbol] = adjustedPrice;
-      
+
     } catch (error) {
       console.error(`❌ Error updating ${symbol}:`, error.message);
       // Continue with other assets
     }
   }
-  
+
   console.log('\n✅ Asset price update cycle complete\n');
 }
 
@@ -383,40 +424,87 @@ async function updatePrices() {
 
 async function start() {
   console.log('🚀 Asset Oracle Bridge Starting...\n');
-  
+
   // Validate environment
   if (!process.env.ETH_RPC_URL) {
     console.warn('⚠️  ETH_RPC_URL not set, using default (may be rate limited)');
   }
-  
+
   if (!process.env.ASSET_ORACLE_PRIVATE_KEY) {
     console.error('❌ ASSET_ORACLE_PRIVATE_KEY not set!');
     process.exit(1);
   }
-  
+
   if (!process.env.HEDERA_ACCOUNT_ID || !process.env.HEDERA_PRIVATE_KEY) {
     console.error('❌ Hedera credentials not set!');
     process.exit(1);
   }
-  
+
   if (!process.env.ASSET_ORACLE_MANAGER_ADDRESS) {
     console.warn('⚠️  ASSET_ORACLE_MANAGER_ADDRESS not set - will only fetch and sign prices');
   }
-  
+
   console.log('✅ Configuration validated\n');
   console.log(`📡 Monitoring ${Object.keys(PYTH_PRICE_FEEDS).length} asset price feeds`);
   console.log(`⏱️  Update interval: ${UPDATE_INTERVALS.default / 1000}s\n`);
-  
+
   // Display oracle address
   const wallet = new ethers.Wallet(process.env.ASSET_ORACLE_PRIVATE_KEY);
   console.log(`🔑 Oracle Address: ${wallet.address}\n`);
-  
+
+  // Wrapper function with error handling for each update cycle
+  const safeUpdatePrices = async () => {
+    try {
+      await updatePrices();
+    } catch (error) {
+      console.error('❌ Error in update cycle:', error.message);
+      console.log('⏭️  Continuing to next cycle...\n');
+      // Don't crash - just log and continue to next cycle
+    }
+  };
+
   // Run immediately
-  await updatePrices();
-  
-  // Schedule regular updates
-  setInterval(updatePrices, UPDATE_INTERVALS.default);
+  await safeUpdatePrices();
+
+  // Schedule regular updates with error handling
+  setInterval(safeUpdatePrices, UPDATE_INTERVALS.default);
 }
 
-// Start the oracle bridge
-start().catch(console.error);
+// Global error handlers to prevent crashes
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error.message);
+  console.log('🔄 Continuing operation...\n');
+  // Don't exit - keep running
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise);
+  console.error('   Reason:', reason);
+  console.log('🔄 Continuing operation...\n');
+  // Don't exit - keep running
+});
+
+// Graceful shutdown handlers
+process.on('SIGTERM', () => {
+  console.log('\n⚠️  Received SIGTERM, shutting down gracefully...');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('\n⚠️  Received SIGINT, shutting down gracefully...');
+  process.exit(0);
+});
+
+// Start the oracle bridge with top-level error handling
+console.log('🛡️  Asset Oracle Bridge with Auto-Recovery');
+console.log('   Handles network errors gracefully');
+console.log('   Continues operation on failures\n');
+
+start().catch((error) => {
+  console.error('❌ Fatal error starting oracle:', error.message);
+  console.log('🔄 Attempting restart in 10 seconds...');
+  setTimeout(() => {
+    console.log('🔄 Restarting...\n');
+    start().catch(console.error);
+  }, 10000);
+});
