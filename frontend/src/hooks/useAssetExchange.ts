@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { ethers } from "ethers";
 import { useWallet } from "@/contexts/WalletContext";
 import { CONTRACTS, ASSETS } from "@/config/contracts";
+import { db } from "@/services/database";
 
 // Import ABI
 import PrismAssetExchangeABI from "@/contracts/PrismAssetExchangeABI.json";
@@ -293,6 +294,42 @@ export const useAssetExchange = (): AssetExchangeHook => {
           localStorage.setItem('prism_asset_balances', JSON.stringify(updatedBalances));
         }
 
+        // Log transaction to database
+        try {
+          const pricePerTokenInHbar = parseFloat(hbarAmount) / parseFloat(expectedTokens.tokensOut);
+          
+          // Get real-time HBAR price by using pTBILL as reference
+          let hbarPriceUsd = 0.145330; // Fallback from your oracle
+          try {
+            const hbarQuote = await getQuoteBuy("pTBILL", "1.0");
+            const tbillOut = parseFloat(hbarQuote.tokensOut);
+            if (tbillOut > 0) {
+              hbarPriceUsd = tbillOut * 1.044; // pTBILL ≈ $1.044 from your oracle
+            }
+          } catch (e) {
+            console.log('Using fallback HBAR price for transaction logging');
+          }
+          
+          const pricePerTokenInUsd = pricePerTokenInHbar * hbarPriceUsd;
+          
+          console.log(`💾 Logging transaction: ${hbarAmount} HBAR → ${expectedTokens.tokensOut} ${tokenSymbol}`);
+          console.log(`💾 Price per token: ${pricePerTokenInHbar.toFixed(4)} HBAR = $${pricePerTokenInUsd.toFixed(2)}`);
+          
+          await db.logAssetTransaction({
+            walletAddress: connection.account.accountId,
+            type: 'buy',
+            assetSymbol: tokenSymbol,
+            amount: expectedTokens.tokensOut,
+            priceUsd: pricePerTokenInUsd.toString(), // Now correctly in USD
+            totalCost: hbarAmount,
+            hbarPriceUsd: hbarPriceUsd.toString(), // Store historical HBAR price
+            txHash: receipt.hash,
+            blockNumber: receipt.blockNumber?.toString(),
+          });
+        } catch (dbError) {
+          console.error('Failed to log buy transaction to database:', dbError);
+        }
+
         // Refresh actual balances in background without showing loading
         setTimeout(() => refreshBalances(false), 2000);
         return receipt;
@@ -375,6 +412,43 @@ export const useAssetExchange = (): AssetExchangeHook => {
             .map(b => b.symbol === tokenSymbol ? { ...b, balance: newBalance } : b)
             .filter(b => parseFloat(b.balance) > 0);
           localStorage.setItem('prism_asset_balances', JSON.stringify(updatedBalances));
+        }
+
+        // Log transaction to database
+        try {
+          const quote = await getQuoteSell(tokenSymbol, tokenAmount);
+          const pricePerTokenInHbar = parseFloat(quote.hbarOut) / parseFloat(tokenAmount);
+          
+          // Get real-time HBAR price by using pTBILL as reference
+          let hbarPriceUsd = 0.145330; // Fallback from your oracle
+          try {
+            const hbarQuote = await getQuoteBuy("pTBILL", "1.0");
+            const tbillOut = parseFloat(hbarQuote.tokensOut);
+            if (tbillOut > 0) {
+              hbarPriceUsd = tbillOut * 1.044; // pTBILL ≈ $1.044 from your oracle
+            }
+          } catch (e) {
+            console.log('Using fallback HBAR price for sell transaction logging');
+          }
+          
+          const pricePerTokenInUsd = pricePerTokenInHbar * hbarPriceUsd;
+          
+          console.log(`💾 Logging sell: ${tokenAmount} ${tokenSymbol} → ${quote.hbarOut} HBAR`);
+          console.log(`💾 Price per token: ${pricePerTokenInHbar.toFixed(4)} HBAR = $${pricePerTokenInUsd.toFixed(2)}`);
+          
+          await db.logAssetTransaction({
+            walletAddress: connection.account.accountId,
+            type: 'sell',
+            assetSymbol: tokenSymbol,
+            amount: tokenAmount,
+            priceUsd: pricePerTokenInUsd.toString(), // Now correctly in USD
+            totalCost: quote.hbarOut,
+            hbarPriceUsd: hbarPriceUsd.toString(), // Store historical HBAR price
+            txHash: receipt.hash,
+            blockNumber: receipt.blockNumber?.toString(),
+          });
+        } catch (dbError) {
+          console.error('Failed to log sell transaction to database:', dbError);
         }
 
         // Refresh actual balances in background without showing loading
