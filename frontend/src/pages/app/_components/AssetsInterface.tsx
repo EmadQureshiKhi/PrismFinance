@@ -5,6 +5,7 @@ import { useAssetExchange } from "@/hooks/useAssetExchange";
 import { useToast } from "@/contexts/ToastContext";
 import { useWallet } from "@/contexts/WalletContext";
 import TokenSelector from "./TokenSelector";
+import ProfitLossDisplay from "./ProfitLossDisplay";
 
 // Import asset logos
 import bitcoinLogo from "@/assets/RWA/bitcoin.png";
@@ -233,6 +234,8 @@ export default function AssetsInterface() {
           border: 1px solid rgba(255, 255, 255, 0.05);
           border-radius: 24px;
           padding: 1.25rem;
+          position: relative;
+          z-index: 5;
         `}>
           {/* Buy/Sell Toggle */}
           <div css={css`
@@ -303,6 +306,8 @@ export default function AssetsInterface() {
             border-radius: 12px;
             padding: 0.875rem;
             margin-bottom: 0.75rem;
+            position: relative;
+            z-index: 10;
           `}>
             <div css={css`
               display: flex;
@@ -639,6 +644,7 @@ export default function AssetsInterface() {
           padding: 1.25rem;
           position: relative;
           overflow: hidden;
+          z-index: 1;
         `}>
           {isRefreshing && (
             <div css={css`
@@ -825,6 +831,13 @@ export default function AssetsInterface() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Profit/Loss Display Section */}
+      <div css={css`
+        margin-top: 2rem;
+      `}>
+        <ProfitLossDisplay />
       </div>
     </div>
   );

@@ -25,6 +25,7 @@ import pAAPLLogo from "@/assets/RWA/apple.png";
 import pGOLDLogo from "@/assets/RWA/gold.png";
 import pSPYLogo from "@/assets/RWA/s&p500.png";
 import pTBILLLogo from "@/assets/RWA/TBILL.png";
+import HBARLogo from "@/assets/svgs/hedera/hedera-hashgraph-hbar-seeklogo.svg";
 
 // Currencies for vault (debt-based borrowing)
 const currencies = [
@@ -668,6 +669,15 @@ const VaultInterface = () => {
                     font-weight: 600;
                   `}
                 >
+                  <img
+                    src={HBARLogo}
+                    alt="HBAR"
+                    css={css`
+                      width: 20px;
+                      height: 20px;
+                      object-fit: contain;
+                    `}
+                  />
                   <span>HBAR</span>
                 </div>
               </div>
@@ -921,6 +931,15 @@ const VaultInterface = () => {
                     font-weight: 600;
                   `}
                 >
+                  <img
+                    src={HBARLogo}
+                    alt="HBAR"
+                    css={css`
+                      width: 20px;
+                      height: 20px;
+                      object-fit: contain;
+                    `}
+                  />
                   <span>HBAR</span>
                 </div>
               </div>
