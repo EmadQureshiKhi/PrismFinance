@@ -4,7 +4,7 @@ import { useState } from "react";
 import { FxCurrency } from "@/hooks/useFxSwap";
 
 // Import currency logos
-import HBARLogo from "@/assets/svgs/hedera/hedera-hashgraph-hbar-seeklogo.svg";
+import HBARLogo from "@/assets/svgs/Hedera/hedera-hashgraph-hbar-seeklogo.svg";
 import pUSDLogo from "@/assets/RWA/pUSD.png";
 import pEURLogo from "@/assets/RWA/pEUR.png";
 import pGBPLogo from "@/assets/RWA/pGBP.png";

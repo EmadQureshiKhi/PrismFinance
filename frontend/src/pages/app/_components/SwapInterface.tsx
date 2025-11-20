@@ -16,7 +16,7 @@ import { ethers } from "ethers";
 import React from "react";
 
 // Import currency logos for the main interface
-import HBARLogo from "@/assets/svgs/hedera/hedera-hashgraph-hbar-seeklogo.svg";
+import HBARLogo from "@/assets/svgs/Hedera/hedera-hashgraph-hbar-seeklogo.svg";
 import pUSDLogo from "@/assets/RWA/pUSD.png";
 import pEURLogo from "@/assets/RWA/pEUR.png";
 import pGBPLogo from "@/assets/RWA/pGBP.png";
