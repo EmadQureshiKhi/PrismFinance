@@ -15,7 +15,6 @@
     "@emotion/babel-plugin": "^11.13.5",
     "@emotion/css": "^11.13.5",
     "@emotion/react": "^11.14.0",
-    "hashconnect": "^3.0.14",
     "@hashgraph/sdk": "^2.76.0",
     "@headlessui/react": "^2.2.9",
     "@phosphor-icons/react": "^2.1.10",
@@ -23,6 +22,7 @@
     "autoprefixer": "^10.4.21",
     "cn-utility": "^1.0.1",
     "ethers": "^6.15.0",
+    "hashconnect": "^3.0.14",
     "motion": "^12.23.24",
     "postcss": "^8.5.6",
     "postcss-easings": "^4.0.0",
@@ -32,6 +32,7 @@
     "react-aria-components": "^1.13.0",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.9.5",
+    "recharts": "^3.4.1",
     "swiper": "^12.0.3",
     "vite-tsconfig-paths": "^5.1.4"
   },
