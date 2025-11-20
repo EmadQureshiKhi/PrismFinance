@@ -99,7 +99,7 @@ export const TOKEN_METADATA = {
     name: "Prism AUD",
     symbol: "pAUD",
     decimals: 6,
-    logo: pUSD, // Using pUSD logo as placeholder - add pAUD.png if you have it
+    logo: pUSD, // Using pUSD logo as placeholder - fixed 
     type: "CURRENCY",
     apy: "11.2%",
   },
@@ -107,7 +107,7 @@ export const TOKEN_METADATA = {
     name: "Prism CAD",
     symbol: "pCAD",
     decimals: 6,
-    logo: pUSD, // Using pUSD logo as placeholder - add pCAD.png if you have it
+    logo: pUSD, // Using pUSD logo as placeholder - fixed
     type: "CURRENCY",
     apy: "11.0%",
   },
