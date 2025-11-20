@@ -1,3 +1,19 @@
+// Token logo imports
+import pUSD from '@/assets/rwa/pUSD.png';
+import pEUR from '@/assets/rwa/pEUR.png';
+import pGBP from '@/assets/rwa/pGBP.png';
+import pJPY from '@/assets/rwa/PJPY.png';
+import pHKD from '@/assets/rwa/pHKD.png';
+import pAED from '@/assets/rwa/pAED.png';
+import pTSLA from '@/assets/rwa/tesla-rwa-coin.png';
+import pAAPL from '@/assets/rwa/apple.png';
+import pBTC from '@/assets/rwa/bitcoin.png';
+import pETH from '@/assets/rwa/eth.png';
+import pGOLD from '@/assets/rwa/gold.png';
+import pSPY from '@/assets/rwa/s&p500.png';
+import pTBILL from '@/assets/rwa/TBILL.png';
+import prismIcon from '@/assets/logo/prism-icon.png';
+
 // Contract addresses and configuration
 export const CONTRACTS = {
   network: "testnet",
@@ -29,13 +45,13 @@ export const CONTRACTS = {
   },
 };
 
-// Token metadata
+// Token metadata with local logos
 export const TOKEN_METADATA = {
   pUSD: {
     name: "Prism USD",
     symbol: "pUSD",
     decimals: 6,
-    logo: "ipfs://bafybeicbsjse6o2us46qtjuefydgravzcvcotnoiy5n2emyp2aegiyunn4",
+    logo: pUSD,
     type: "CURRENCY",
     apy: "12.5%",
   },
@@ -43,7 +59,7 @@ export const TOKEN_METADATA = {
     name: "Prism EUR",
     symbol: "pEUR",
     decimals: 6,
-    logo: "ipfs://bafybeig7lyei7linw4d5xnvveqwmdg45l5ike5i5qmi5cjtznkqa7clsvy",
+    logo: pEUR,
     type: "CURRENCY",
     apy: "11.8%",
   },
@@ -51,7 +67,7 @@ export const TOKEN_METADATA = {
     name: "Prism GBP",
     symbol: "pGBP",
     decimals: 6,
-    logo: "ipfs://bafybeieku5ljn75cejuv6fqw6zu2tcdpgrtlggq3t4cjafsrkykp56heyi",
+    logo: pGBP,
     type: "CURRENCY",
     apy: "13.2%",
   },
@@ -59,7 +75,7 @@ export const TOKEN_METADATA = {
     name: "Prism JPY",
     symbol: "pJPY",
     decimals: 6,
-    logo: "ipfs://bafybeiagpik5ito7bocyxkmfom4ht4uthzfjb6yklv2ctdjn7k2ezn7kw4",
+    logo: pJPY,
     type: "CURRENCY",
     apy: "10.5%",
   },
@@ -67,7 +83,7 @@ export const TOKEN_METADATA = {
     name: "Prism HKD",
     symbol: "pHKD",
     decimals: 6,
-    logo: "ipfs://bafybeiflieb3qddxe6bg6vllwokgl57v3vcywl7y6c4l55nunqf7aygpve",
+    logo: pHKD,
     type: "CURRENCY",
     apy: "12.0%",
   },
@@ -75,15 +91,31 @@ export const TOKEN_METADATA = {
     name: "Prism AED",
     symbol: "pAED",
     decimals: 6,
-    logo: "ipfs://bafybeiawbq4kv5zaoy5ljifmr5zd4g77w6nncyd34witpp2ojbhuxtca5y",
+    logo: pAED,
     type: "CURRENCY",
     apy: "11.5%",
+  },
+  pAUD: {
+    name: "Prism AUD",
+    symbol: "pAUD",
+    decimals: 6,
+    logo: pUSD, // Using pUSD logo as placeholder - add pAUD.png if you have it
+    type: "CURRENCY",
+    apy: "11.2%",
+  },
+  pCAD: {
+    name: "Prism CAD",
+    symbol: "pCAD",
+    decimals: 6,
+    logo: pUSD, // Using pUSD logo as placeholder - add pCAD.png if you have it
+    type: "CURRENCY",
+    apy: "11.0%",
   },
   pTSLA: {
     name: "Prism Tesla",
     symbol: "pTSLA",
     decimals: 6,
-    logo: "ipfs://bafkreifzomk37opwdlygqfuugmqqtw37r573dysdxjqzod36usvsu4ctsm",
+    logo: pTSLA,
     type: "ASSET",
     apy: "7.8%",
   },
@@ -91,7 +123,7 @@ export const TOKEN_METADATA = {
     name: "Prism Apple",
     symbol: "pAAPL",
     decimals: 6,
-    logo: "ipfs://bafkreic5hlcdjwoxkg64p25ialfccnvl4cychmqshah5k5jqmnwodwowm4",
+    logo: pAAPL,
     type: "ASSET",
     apy: "7.5%",
   },
@@ -99,7 +131,7 @@ export const TOKEN_METADATA = {
     name: "Prism Treasury Bill",
     symbol: "pTBILL",
     decimals: 6,
-    logo: "ipfs://bafkreicjh2tcfiuvrwafowlxsfnx6lisxbqaq23yclaavszsxxsddb4ea4",
+    logo: pTBILL,
     type: "ASSET",
     apy: "5.5%",
   },
@@ -107,7 +139,7 @@ export const TOKEN_METADATA = {
     name: "Prism Gold",
     symbol: "pGOLD",
     decimals: 6,
-    logo: "ipfs://bafkreihxcyin2fqonw7zgdv7iuhzfdy4dsj7zn3rs6tvej2kvrtf2brjam",
+    logo: pGOLD,
     type: "ASSET",
     apy: "6.5%",
   },
@@ -115,7 +147,7 @@ export const TOKEN_METADATA = {
     name: "Prism S&P 500",
     symbol: "pSPY",
     decimals: 6,
-    logo: "ipfs://bafkreicl4phymn74up2lc4kxqntcwwdjouysn5iqnoxpvqnl7vmf4bkkaa",
+    logo: pSPY,
     type: "ASSET",
     apy: "8.0%",
   },
@@ -123,7 +155,7 @@ export const TOKEN_METADATA = {
     name: "Prism Bitcoin",
     symbol: "pBTC",
     decimals: 6,
-    logo: "ipfs://bafkreialyycjrt7ofjb3o462lwxa2xs7tgnen242y6it43appphznygfkq",
+    logo: pBTC,
     type: "ASSET",
     apy: "8.5%",
   },
@@ -131,7 +163,7 @@ export const TOKEN_METADATA = {
     name: "Prism Ethereum",
     symbol: "pETH",
     decimals: 6,
-    logo: "ipfs://bafkreib5yy4rtep3u2ktmfyqgqsviwj3kqwqgxtnntzs25rzrwvlejlm6qa",
+    logo: pETH,
     type: "ASSET",
     apy: "9.2%",
   },
@@ -139,14 +171,14 @@ export const TOKEN_METADATA = {
     name: "Prism Governance Token",
     symbol: "PRISM",
     decimals: 8,
-    logo: "ipfs://bafybeicbsjse6o2us46qtjuefydgravzcvcotnoiy5n2emyp2aegiyunn4",
+    logo: prismIcon,
     type: "GOVERNANCE",
     apy: "15.0%",
   },
 };
 
 // Separate currencies (debt-based) from assets (ownership-based)
-export const CURRENCIES = ["pUSD", "pEUR", "pGBP", "pJPY", "pHKD", "pAED"];
+export const CURRENCIES = ["pUSD", "pEUR", "pGBP", "pJPY", "pHKD", "pAED", "pAUD", "pCAD"];
 export const ASSETS = ["pTSLA", "pAAPL", "pBTC", "pETH", "pGOLD", "pSPY", "pTBILL"];
 
 // HashScan links
