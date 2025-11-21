@@ -3,6 +3,7 @@ import { css } from "@emotion/react";
 import { useWallet } from "@/contexts/WalletContext";
 import { db } from "@/services/database";
 import { useAssetExchange } from "@/hooks/useAssetExchange";
+import { useOraclePrices } from "@/hooks/useOraclePrices";
 import { TrendUp, TrendDown, CurrencyDollar, Target, Trophy, ChartLine } from "@phosphor-icons/react";
 
 // Import asset logos
@@ -53,7 +54,7 @@ export default function ProfitLossDisplay() {
   console.log('🚀 ProfitLossDisplay component mounted');
 
   const { connection } = useWallet();
-  const { getQuoteBuy } = useAssetExchange();
+  const { prices: oraclePrices, isLoading: oracleLoading, error: oracleError } = useOraclePrices();
   const [positions, setPositions] = useState<AssetPosition[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [totalStats, setTotalStats] = useState({
@@ -64,100 +65,58 @@ export default function ProfitLossDisplay() {
   });
 
   console.log('🔗 Connection state:', connection?.account?.accountId);
+  console.log('📊 Oracle prices loaded:', oraclePrices);
 
-  // Get real-time HBAR price from oracle
+  // Get HBAR price from oracle
   const fetchHbarPrice = async (): Promise<number> => {
-    try {
-      console.log('💰 Fetching real-time HBAR price from oracle...');
-      
-      // Use pTBILL as reference since it should be close to $1.00
-      const quote = await getQuoteBuy("pTBILL", "1.0"); // 1 HBAR → X pTBILL
-      const tbillTokensOut = parseFloat(quote.tokensOut);
-      
-      if (tbillTokensOut > 0) {
-        // If 1 HBAR gets us X pTBILL tokens, and pTBILL ≈ $1.044 (from your oracle)
-        const tbillPriceUsd = 1.044; // From your oracle: $1.044257
-        const hbarPriceUsd = tbillTokensOut * tbillPriceUsd;
-        
-        console.log(`💰 Real-time HBAR price: $${hbarPriceUsd.toFixed(6)} (via ${tbillTokensOut.toFixed(6)} pTBILL)`);
-        return hbarPriceUsd;
-      }
-    } catch (error) {
-      console.error('❌ Failed to get real-time HBAR price:', error);
+    const hbarPrice = oraclePrices['pHBAR'];
+    if (hbarPrice && hbarPrice > 0) {
+      console.log(`💰 HBAR price from oracle: $${hbarPrice.toFixed(6)}`);
+      return hbarPrice;
     }
-    
-    // Fallback to your oracle's last known HBAR price
-    const fallbackPrice = 0.145330; // From your oracle: $0.145330
+    const fallbackPrice = 0.130;
     console.log(`⚠️ Using fallback HBAR price: $${fallbackPrice}`);
     return fallbackPrice;
   };
 
-  // Fetch current prices using the same method as buy/sell (via getQuoteBuy)
+  // Fetch current prices from oracle contracts (real market prices, not pool prices)
   const fetchCurrentPrices = async (): Promise<{ [key: string]: number }> => {
     try {
+      console.log('🔍 Fetching prices from oracle contracts...');
       const prices: { [key: string]: number } = {};
 
-      console.log('🔍 Fetching prices using getQuoteBuy (same as buy/sell)...');
-
-      // Use a small amount (0.1 HBAR) to get exchange rates
-      const testHbarAmount = "0.1";
-      const hbarPriceUsd = 0.145; // From your oracle: ~$0.145
-
       for (const asset of supportedAssets) {
-        try {
-          console.log(`📊 Getting quote for ${asset}...`);
-
-          // Get quote: 0.1 HBAR → X tokens (same as buy/sell functions)
-          const quote = await getQuoteBuy(asset, testHbarAmount);
-          const tokensOut = parseFloat(quote.tokensOut);
-
-          if (tokensOut > 0 && !isNaN(tokensOut)) {
-            // Price per token = 0.1 HBAR / tokens received
-            const priceInHbar = 0.1 / tokensOut;
-            // Convert to USD
-            const priceInUsd = priceInHbar * hbarPriceUsd;
-
-            // Sanity check
-            if (priceInUsd > 0 && priceInUsd < 1000000) {
-              prices[asset] = priceInUsd;
-              console.log(`✅ ${asset}: $${priceInUsd.toFixed(2)} (via getQuoteBuy)`);
-            } else {
-              throw new Error(`Price seems unreasonable: $${priceInUsd}`);
-            }
-          } else {
-            throw new Error(`Invalid tokens out: ${tokensOut}`);
-          }
-        } catch (error) {
-          console.error(`❌ Failed to get price for ${asset}:`, error);
-
-          // Use your actual oracle prices as fallback
+        const oraclePrice = oraclePrices[asset];
+        if (oraclePrice && oraclePrice > 0) {
+          prices[asset] = oraclePrice;
+          console.log(`✅ ${asset}: $${oraclePrice.toFixed(2)} (from oracle)`);
+        } else {
           const fallbackPrices: { [key: string]: number } = {
-            "pTSLA": 403.99,  // From your oracle: $403.989820
-            "pAAPL": 268.51,  // From your oracle: $268.513450  
-            "pBTC": 91539.53, // From your oracle: $91539.528766
-            "pETH": 2993.67,  // From your oracle: $2993.668752
-            "pGOLD": 4063.80, // From your oracle: $4063.803000
-            "pSPY": 662.62,   // From your oracle: $662.624440
-            "pTBILL": 1.04,   // From your oracle: $1.044257
+            "pTSLA": 395.03,
+            "pAAPL": 266.27,
+            "pBTC": 83689.20,
+            "pETH": 2739.94,
+            "pGOLD": 4042.91,
+            "pSPY": 652.44,
+            "pTBILL": 1.04,
           };
           prices[asset] = fallbackPrices[asset] || 0;
           console.log(`⚠️ ${asset}: Using fallback price $${prices[asset]}`);
         }
       }
 
-      console.log('💰 Final prices:', prices);
+      console.log('💰 Final oracle prices:', prices);
       return prices;
     } catch (error) {
-      console.error('Error fetching prices:', error);
-      // Return your oracle's actual prices as fallback
+      console.error('❌ Error fetching oracle prices:', error);
       return {
-        "pTSLA": 403.99,  // From your oracle: $403.989820
-        "pAAPL": 268.51,  // From your oracle: $268.513450  
-        "pBTC": 91539.53, // From your oracle: $91539.528766
-        "pETH": 2993.67,  // From your oracle: $2993.668752
-        "pGOLD": 4063.80, // From your oracle: $4063.803000
-        "pSPY": 662.62,   // From your oracle: $662.624440
-        "pTBILL": 1.04,   // From your oracle: $1.044257
+        "pTSLA": 395.03,
+        "pAAPL": 266.27,
+        "pBTC": 83689.20,
+        "pETH": 2739.94,
+        "pGOLD": 4042.91,
+        "pSPY": 652.44,
+        "pTBILL": 1.04,
       };
     }
   };
@@ -169,6 +128,12 @@ export default function ProfitLossDisplay() {
       if (!connection?.account?.accountId) {
         console.log('❌ No wallet account ID found');
         setIsLoading(false);
+        return;
+      }
+
+      // Wait for oracle prices to load completely
+      if (oracleLoading || Object.keys(oraclePrices).length === 0) {
+        console.log('⏳ Waiting for oracle prices to load...');
         return;
       }
 
@@ -246,7 +211,7 @@ export default function ProfitLossDisplay() {
     };
 
     fetchProfitLoss();
-  }, [connection]);
+  }, [connection, oracleLoading]); // Re-run when oracle finishes loading
 
   // Add a refresh function that can be called after transactions
   const refreshProfitLoss = async () => {
@@ -342,6 +307,12 @@ export default function ProfitLossDisplay() {
   // Background refresh function (no loading state)
   const backgroundRefresh = async () => {
     if (!connection?.account?.accountId) return;
+
+    // Don't refresh if oracle is still loading
+    if (oracleLoading || Object.keys(oraclePrices).length === 0) {
+      console.log('⏳ Background refresh skipped - oracle still loading');
+      return;
+    }
 
     try {
       console.log('🔄 Background refresh (no loading)...');
@@ -777,7 +748,7 @@ export default function ProfitLossDisplay() {
                       color: #ffffff;
                       font-size: 0.875rem;
                     `}>
-                        {isNaN(parseFloat(position.average_price)) ? 'N/A' : `$${parseFloat(position.average_price).toFixed(2)}`}
+                        {isNaN(parseFloat(position.average_price)) ? 'N/A' : `${parseFloat(position.average_price).toFixed(2)}`}
                       </div>
                     </div>
                   </div>
