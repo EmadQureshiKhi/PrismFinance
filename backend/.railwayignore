@@ -1,0 +1,15 @@
+# Don't upload these to Railway
+.env*
+!.env.example
+node_modules/
+*.log
+.DS_Store
+test/
+scripts/
+oracle-tests/
+*.md
+generateOracleKey.js
+verify-signature-test.js
+setup-oracle.sh
+start-oracle.sh
+start-asset-oracle.sh
