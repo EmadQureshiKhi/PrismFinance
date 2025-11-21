@@ -103,7 +103,7 @@ export function OracleActivator() {
       {isExpanded && (
         <div css={cardStyle}>
           <div css={headerStyle}>
-            <h3>Price Oracle (Demo Mode)</h3>
+            <h3>Price Oracle</h3>
             <button css={minimizeButtonStyle} onClick={() => setIsExpanded(false)} title="Minimize">
               −
             </button>
