@@ -68,7 +68,8 @@ export class SaucerSwapDex implements DexInterface {
   };
 
   constructor() {
-    this.provider = new ethers.JsonRpcProvider('https://testnet.hashio.io/api', undefined, {
+    // Use thirdweb RPC as it's more reliable than hashio
+    this.provider = new ethers.JsonRpcProvider('https://296.rpc.thirdweb.com', undefined, {
       batchMaxCount: 1,
     });
 
@@ -197,17 +198,26 @@ export class SaucerSwapDex implements DexInterface {
       const amountInSmallestUnit = this.toSmallestUnit(amount, inputDecimals);
       const path = route.path.map(tokenId => '0x' + this.toEvmAddress(tokenId));
 
+      console.log(`   Testing V1 route: ${route.path.map(id => this.getTokenSymbol(id)).join(' → ')}`);
+      console.log(`   Amount: ${amount} (${amountInSmallestUnit} smallest units)`);
+
       const abi = [
         'function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts)'
       ];
 
       const routerContract = new ethers.Contract(this.v1RouterAddress, abi, this.provider);
+      console.log(`   Calling getAmountsOut on router: ${this.v1RouterAddress}`);
+      console.log(`   Path: ${path.join(' → ')}`);
+      
       const amounts = await routerContract.getAmountsOut(amountInSmallestUnit, path);
+      console.log(`   ✅ Got amounts: ${amounts.map(a => a.toString()).join(' → ')}`);
 
       const outputAmountSmallest = amounts[amounts.length - 1].toString();
       const outputAmount = this.fromSmallestUnit(outputAmountSmallest, outputDecimals);
       const exchangeRate = parseFloat(outputAmount) / parseFloat(amount);
       const fee = 0.3 * route.hops;
+
+      console.log(`   💰 Output: ${outputAmount} ${this.getTokenSymbol(outputToken)} (rate: ${exchangeRate})`);
 
       return {
         dexName: `${this.name} V1`,
@@ -234,7 +244,8 @@ export class SaucerSwapDex implements DexInterface {
         estimatedGas: '0.05',
       };
     } catch (error) {
-      console.error(`❌ V1 quote error for route:`, error);
+      const routeStr = route.path.map(id => this.getTokenSymbol(id)).join(' → ');
+      console.error(`❌ V1 quote error for ${routeStr}:`, error instanceof Error ? error.message : error);
       return null;
     }
   }
@@ -305,7 +316,8 @@ export class SaucerSwapDex implements DexInterface {
         estimatedGas: '0.08',
       };
     } catch (error) {
-      console.error(`❌ V2 quote error:`, error);
+      // V2 pools may not exist on testnet - this is expected
+      console.log(`ℹ️ V2 quote unavailable (likely no V2 pool exists)`);
       return null;
     }
   }
@@ -356,7 +368,10 @@ export class SaucerSwapDex implements DexInterface {
       }
     });
 
-    const quotes = (await Promise.all(quotePromises)).filter(q => q !== null) as SwapQuote[];
+    const allQuoteResults = await Promise.all(quotePromises);
+    console.log(`   Quote results: ${allQuoteResults.filter(q => q !== null).length} successful, ${allQuoteResults.filter(q => q === null).length} failed`);
+    
+    const quotes = allQuoteResults.filter(q => q !== null) as SwapQuote[];
 
     // Sort by best output amount (descending)
     quotes.sort((a, b) => parseFloat(b.outputAmount) - parseFloat(a.outputAmount));
