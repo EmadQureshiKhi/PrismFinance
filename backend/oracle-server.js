@@ -13,7 +13,16 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.env.oracle.local' });
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://prismfinance-eta.vercel.app',
+    'https://prismfinance-git-main-emadqureshikhis-projects.vercel.app',
+    'https://prismfinance-8r2pf7lb1-emadqureshikhis-projects.vercel.app'
+  ],
+  credentials: true
+}));
 app.use(express.json());
 
 // ============================================================================
