@@ -392,6 +392,30 @@ class DatabaseService {
     }
   }
 
+  // Get all transactions (vault + asset) for activity feed
+  async getAllTransactions(walletAddress: string, limit = 50) {
+    try {
+      const [vaultTxs, assetTxs] = await Promise.all([
+        this.getVaultTransactions(walletAddress, limit),
+        this.getAssetTransactions(walletAddress, limit),
+      ]);
+
+      // Combine and sort by timestamp
+      const allTxs = [
+        ...vaultTxs.map(tx => ({ ...tx, source: 'vault' as const })),
+        ...assetTxs.map(tx => ({ ...tx, source: 'asset' as const })),
+      ].sort((a, b) => {
+        const timeA = new Date(a.created_at).getTime();
+        const timeB = new Date(b.created_at).getTime();
+        return timeB - timeA; // Newest first
+      });
+
+      return allTxs.slice(0, limit);
+    } catch (error) {
+      console.error('Error fetching all transactions:', error);
+      return [];
+    }
+  }
 
 }
 
