@@ -7,6 +7,7 @@ import VaultInterface from "./_components/VaultInterface";
 import AssetsInterface from "./_components/AssetsInterface";
 import PrepsInterface from "./_components/PrepsInterface";
 import ReservesPage from "./reserves/ReservesPage";
+import { OracleActivator } from "@/components/OracleActivator";
 import prismBg from "@/assets/Prism Finance Background Final.png";
 
 const AppPage = () => {
@@ -77,6 +78,18 @@ const AppPage = () => {
                 <AppLayout onPageChange={setActivePage}>
                     {renderContent()}
                 </AppLayout>
+                
+                {/* Oracle Activator - Fixed at bottom right */}
+                <div
+                    css={css`
+                        position: fixed;
+                        bottom: 24px;
+                        right: 24px;
+                        z-index: 1000;
+                    `}
+                >
+                    <OracleActivator />
+                </div>
             </div>
         </div>
     );
