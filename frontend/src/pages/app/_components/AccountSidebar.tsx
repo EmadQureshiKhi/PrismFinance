@@ -7,6 +7,8 @@ import { Token } from "@/services/wallet/types";
 import { TOKEN_METADATA, CONTRACTS } from "@/config/contracts";
 import { getTokenLogo } from "@/config/tokenLogos";
 import { ethers } from "ethers";
+import { useActivity } from "@/hooks/useActivity";
+import { ActivityFeed } from "@/components/ActivityFeed";
 
 interface AccountSidebarProps {
     isOpen: boolean;
@@ -21,6 +23,7 @@ const AccountSidebar = ({ isOpen, onClose }: AccountSidebarProps) => {
     const [activeTab, setActiveTab] = useState<'portfolio' | 'activity'>('portfolio');
     const [balanceVisible, setBalanceVisible] = useState(true);
     const [currencyPrices, setCurrencyPrices] = useState<Record<string, number>>({});
+    const { activities, isLoading: activityLoading, error: activityError } = useActivity(connection?.account?.accountId, 50);
 
     // Fetch HBAR price from CoinGecko and currency prices from pools
     useEffect(() => {
@@ -638,35 +641,14 @@ const AccountSidebar = ({ isOpen, onClose }: AccountSidebarProps) => {
                     ) : (
                         <div
                             css={css`
-                                text-align: center;
-                                padding: 3rem 1.5rem;
-                                color: rgba(144, 161, 185, 1);
+                                padding: 1rem 1rem 0 1rem;
                             `}
                         >
-                            <div
-                                css={css`
-                                    font-size: 2rem;
-                                    margin-bottom: 1rem;
-                                `}
-                            >
-                                📜
-                            </div>
-                            <div
-                                css={css`
-                                    font-size: 0.9375rem;
-                                    font-weight: 500;
-                                `}
-                            >
-                                No activity yet
-                            </div>
-                            <div
-                                css={css`
-                                    font-size: 0.8125rem;
-                                    margin-top: 0.5rem;
-                                `}
-                            >
-                                Your transactions will appear here
-                            </div>
+                            <ActivityFeed 
+                                activities={activities}
+                                isLoading={activityLoading}
+                                error={activityError}
+                            />
                         </div>
                     )}
                 </div>
