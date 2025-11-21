@@ -140,7 +140,7 @@ async function fetchPythPrice(symbol) {
   const feedConfig = PYTH_PRICE_FEEDS[symbol];
   const response = await fetch(`${PYTH_HERMES_API}/v2/updates/price/latest?ids[]=${feedConfig.feedId}`);
   const data = await response.json();
-  
+
   if (data.parsed && data.parsed.length > 0) {
     const priceData = data.parsed[0].price;
     return {
@@ -155,7 +155,7 @@ async function fetchPythPrice(symbol) {
 function convertChainlinkPrice(pair, chainlinkPrice) {
   const price = BigInt(chainlinkPrice);
   const forexPairs = ['AUD/USD', 'CAD/USD', 'CHF/USD', 'CNY/USD', 'EUR/USD', 'GBP/USD', 'JPY/USD', 'NZD/USD', 'PHP/USD', 'SGD/USD', 'TRY/USD'];
-  
+
   if (forexPairs.includes(pair)) {
     return ((BigInt(10) ** BigInt(26)) / price).toString();
   }
@@ -165,10 +165,10 @@ function convertChainlinkPrice(pair, chainlinkPrice) {
 function convertPythPrice(symbol, pythPrice, pythExponent) {
   let price = BigInt(pythPrice);
   if (price < 0n) price = -price;
-  
+
   const targetDecimals = 8;
   const currentDecimals = pythExponent < 0 ? -pythExponent : pythExponent;
-  
+
   let adjustedPrice;
   if (currentDecimals === targetDecimals) {
     adjustedPrice = price;
@@ -179,7 +179,7 @@ function convertPythPrice(symbol, pythPrice, pythExponent) {
     const scaleFactor = BigInt(10) ** BigInt(currentDecimals - targetDecimals);
     adjustedPrice = price / scaleFactor;
   }
-  
+
   return adjustedPrice.toString();
 }
 
@@ -204,7 +204,7 @@ async function signAssetPrice(symbol, price, timestamp) {
 async function pushFxToHedera(pair, price, timestamp, signature) {
   const client = getHederaClient();
   const adjustedPrice = convertChainlinkPrice(pair, price);
-  
+
   const tx = await new ContractExecuteTransaction()
     .setContractId(process.env.ORACLE_MANAGER_ADDRESS)
     .setGas(300000)
@@ -215,7 +215,7 @@ async function pushFxToHedera(pair, price, timestamp, signature) {
       .addBytes(Array.from(ethers.getBytes(signature)))
     )
     .execute(client);
-  
+
   return await tx.getReceipt(client);
 }
 
@@ -223,7 +223,7 @@ async function pushAssetToHedera(symbol, price, timestamp, signature) {
   const client = getHederaClient();
   const { ContractId } = await import('@hashgraph/sdk');
   const contractId = ContractId.fromEvmAddress(0, 0, process.env.ASSET_ORACLE_MANAGER_ADDRESS);
-  
+
   const tx = await new ContractExecuteTransaction()
     .setContractId(contractId)
     .setGas(300000)
@@ -234,7 +234,7 @@ async function pushAssetToHedera(symbol, price, timestamp, signature) {
       .addBytes(Array.from(ethers.getBytes(signature)))
     )
     .execute(client);
-  
+
   return await tx.getReceipt(client);
 }
 
@@ -243,7 +243,7 @@ async function updatePythOracleFallback(symbol, price) {
   const pythOracleAddress = "0x1050eb5E510E6d9D747fEeD6E32B76D4061896F4";
   const { ContractId } = await import('@hashgraph/sdk');
   const contractId = ContractId.fromEvmAddress(0, 0, pythOracleAddress);
-  
+
   const tx = await new ContractExecuteTransaction()
     .setContractId(contractId)
     .setGas(200000)
@@ -252,7 +252,7 @@ async function updatePythOracleFallback(symbol, price) {
       .addUint256(price)
     )
     .execute(client);
-  
+
   return await tx.getReceipt(client);
 }
 
@@ -262,51 +262,61 @@ async function updatePythOracleFallback(symbol, price) {
 
 async function updateAllPrices() {
   if (!isActive) return;
-  
+
   console.log('🔄 Updating prices...');
-  
+
   const hederaProvider = new ethers.JsonRpcProvider(
     process.env.HEDERA_NETWORK === 'mainnet'
       ? 'https://mainnet.hashio.io/api'
       : 'https://testnet.hashio.io/api'
   );
-  const latestBlock = await hederaProvider.getBlock('latest');
-  const hederaTimestamp = latestBlock.timestamp - 5;
-  
+
+  // Helper to get fresh timestamp
+  const getFreshTimestamp = async () => {
+    const block = await hederaProvider.getBlock('latest');
+    return block.timestamp;
+  };
+
   // Update FxSwap prices
   for (const pair of Object.keys(CHAINLINK_FEEDS)) {
     try {
       const { price } = await fetchChainlinkPrice(pair);
       const adjustedPrice = convertChainlinkPrice(pair, price);
-      const signature = await signFxPrice(pair, adjustedPrice, hederaTimestamp);
-      
+
+      // Get fresh timestamp for each update
+      const timestamp = await getFreshTimestamp();
+      const signature = await signFxPrice(pair, adjustedPrice, timestamp);
+
       if (process.env.ORACLE_MANAGER_ADDRESS) {
-        await pushFxToHedera(pair, price, hederaTimestamp, signature);
+        await pushFxToHedera(pair, price, timestamp, signature);
       }
       console.log(`✅ FX ${pair}: ${(Number(price) / 1e8).toFixed(6)}`);
     } catch (error) {
       console.error(`❌ FX ${pair}:`, error.message);
     }
   }
-  
+
   // Update Asset prices
   for (const symbol of Object.keys(PYTH_PRICE_FEEDS)) {
     try {
       const { price, exponent } = await fetchPythPrice(symbol);
       const adjustedPrice = convertPythPrice(symbol, price, exponent);
-      const signature = await signAssetPrice(symbol, adjustedPrice, hederaTimestamp);
-      
+
+      // Get fresh timestamp for each update
+      const timestamp = await getFreshTimestamp();
+      const signature = await signAssetPrice(symbol, adjustedPrice, timestamp);
+
       if (process.env.ASSET_ORACLE_MANAGER_ADDRESS) {
-        await pushAssetToHedera(symbol, adjustedPrice, hederaTimestamp, signature);
+        await pushAssetToHedera(symbol, adjustedPrice, timestamp, signature);
       }
       await updatePythOracleFallback(symbol, adjustedPrice);
-      
+
       console.log(`✅ Asset ${symbol}: $${(Number(adjustedPrice) / 1e8).toFixed(6)}`);
     } catch (error) {
       console.error(`❌ Asset ${symbol}:`, error.message);
     }
   }
-  
+
   console.log('✅ Update complete\n');
 }
 
@@ -319,22 +329,22 @@ function startOracle() {
     console.log('⚠️  Oracle already active');
     return;
   }
-  
+
   isActive = true;
   activatedAt = Date.now();
   expiresAt = activatedAt + ACTIVATION_DURATION;
-  
+
   console.log('🚀 Oracle activated for 2 hours');
   console.log(`   Expires at: ${new Date(expiresAt).toISOString()}`);
-  
+
   // Run immediately
   updateAllPrices().catch(console.error);
-  
+
   // Schedule regular updates
   updateInterval = setInterval(() => {
     updateAllPrices().catch(console.error);
   }, UPDATE_INTERVAL);
-  
+
   // Auto-stop after duration
   activationTimer = setTimeout(() => {
     stopOracle();
@@ -346,21 +356,21 @@ function stopOracle() {
     console.log('⚠️  Oracle already stopped');
     return;
   }
-  
+
   isActive = false;
   activatedAt = null;
   expiresAt = null;
-  
+
   if (updateInterval) {
     clearInterval(updateInterval);
     updateInterval = null;
   }
-  
+
   if (activationTimer) {
     clearTimeout(activationTimer);
     activationTimer = null;
   }
-  
+
   console.log('🛑 Oracle stopped');
 }
 
