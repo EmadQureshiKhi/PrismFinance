@@ -206,18 +206,18 @@ async function fetchPools() {
 
     try {
         console.log('📡 Fetching pools from SaucerSwap API...');
-        
+
         // Add API key if available
         const headers = {};
         const apiKey = process.env.SAUCERSWAP_API_KEY;
-        
+
         if (apiKey) {
             console.log('🔑 Using SaucerSwap API key');
             headers['x-api-key'] = apiKey;
         } else {
             console.warn('⚠️ No SAUCERSWAP_API_KEY found in environment');
         }
-        
+
         const response = await fetch('https://api.saucerswap.finance/pools/', { headers });
 
         if (!response.ok) {
@@ -497,7 +497,7 @@ app.get('/health', (req, res) => {
 app.listen(PORT, async () => {
     console.log(`🚀 Prism Finance Backend running on http://localhost:${PORT}`);
     console.log(`📡 Connected to Hedera JSON-RPC: ${JSON_RPC_RELAY}`);
-    
+
     // Pre-fetch pools on startup
     console.log('🔄 Pre-fetching SaucerSwap pools...');
     await fetchPools();

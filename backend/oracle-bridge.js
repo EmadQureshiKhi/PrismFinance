@@ -27,11 +27,11 @@ const CHAINLINK_FEEDS = {
   'PHP/USD': '0x3C7dB4D25deAb7c89660512C5494Dc9A3FC40f78', // Philippines Peso
   'SGD/USD': '0xe25277fF4bbF9081C75Ab0EB13B4A13a721f3E13', // Singapore Dollar
   'TRY/USD': '0xB09fC5fD3f11Cf9eb5E1C5Dba43114e3C9f477b5', // Turkish Lira
-  
+
   // Crypto
   'BTC/USD': '0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c', // Bitcoin
   'ETH/USD': '0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419', // Ethereum
-  
+
   // Commodities
   'XAU/USD': '0x214eD9Da11D2fbe465a6fc601a91E62EbEc1a0D6', // Gold
 };
@@ -65,12 +65,12 @@ function getHederaClient() {
   const client = process.env.HEDERA_NETWORK === 'mainnet'
     ? Client.forMainnet()
     : Client.forTestnet();
-  
+
   client.setOperator(
     process.env.HEDERA_ACCOUNT_ID,
     process.env.HEDERA_PRIVATE_KEY
   );
-  
+
   return client;
 }
 
@@ -117,16 +117,16 @@ async function fetchChainlinkPrice(pair) {
 async function signPrice(pair, price, timestamp) {
   try {
     const wallet = new ethers.Wallet(process.env.ORACLE_PRIVATE_KEY);
-    
+
     // Create message hash
     const messageHash = ethers.solidityPackedKeccak256(
       ['bytes32', 'uint256', 'uint256'],
       [ethers.id(pair), price, timestamp]
     );
-    
+
     // Sign the message
     const signature = await wallet.signMessage(ethers.getBytes(messageHash));
-    
+
     return signature;
   } catch (error) {
     console.error(`❌ Error signing price for ${pair}:`, error.message);
@@ -146,7 +146,7 @@ async function signPrice(pair, price, timestamp) {
 function convertPriceFormat(pair, chainlinkPrice) {
   // Chainlink price has 8 decimals
   const price = BigInt(chainlinkPrice);
-  
+
   // For forex pairs, we need to invert (EUR per USD instead of USD per EUR)
   const forexPairs = ['AUD/USD', 'CAD/USD', 'CHF/USD', 'CNY/USD', 'EUR/USD', 'GBP/USD', 'JPY/USD', 'NZD/USD', 'PHP/USD', 'SGD/USD', 'TRY/USD'];
   if (forexPairs.includes(pair)) {
@@ -156,7 +156,7 @@ function convertPriceFormat(pair, chainlinkPrice) {
     const adjustedPrice = (BigInt(10) ** BigInt(26)) / price;
     return adjustedPrice.toString();
   }
-  
+
   // For crypto/commodities, just scale to 18 decimals
   // Chainlink gives 8 decimals, we need 18
   const adjustedPrice = price * BigInt(1e10); // 8 + 10 = 18 decimals
@@ -173,14 +173,14 @@ function convertPriceFormat(pair, chainlinkPrice) {
 async function pushToHedera(pair, price, timestamp, signature) {
   try {
     const client = getHederaClient();
-    
+
     // Convert price format
     const adjustedPrice = convertPriceFormat(pair, price);
-    
+
     console.log(`📤 Pushing ${pair} to Hedera:`);
     console.log(`   Raw price: ${price} (8 decimals)`);
     console.log(`   Adjusted: ${adjustedPrice} (18 decimals)`);
-    
+
     // Create contract call
     const tx = await new ContractExecuteTransaction()
       .setContractId(process.env.ORACLE_MANAGER_ADDRESS)
@@ -192,10 +192,10 @@ async function pushToHedera(pair, price, timestamp, signature) {
         .addBytes(Array.from(ethers.getBytes(signature)))
       )
       .execute(client);
-    
+
     const receipt = await tx.getReceipt(client);
     console.log(`✅ Pushed ${pair} to Hedera: ${receipt.status}`);
-    
+
     return receipt;
   } catch (error) {
     console.error(`❌ Error pushing ${pair} to Hedera:`, error.message);
@@ -215,12 +215,12 @@ function calculateDeviation(pair, currentPrice) {
   if (!lastPrice) {
     return 0;
   }
-  
+
   // CRITICAL: Use BigInt arithmetic
   const deviation = Number(
     (BigInt(currentPrice) - BigInt(lastPrice)) * 10000n / BigInt(lastPrice)
   ) / 10000;
-  
+
   return Math.abs(deviation);
 }
 
@@ -245,43 +245,43 @@ async function sendHeartbeat(pair, timestamp) {
  */
 async function updatePrices() {
   console.log('\n🔄 Starting price update cycle...');
-  
+
   // Get fresh Hedera timestamp for this update cycle
-  const hederaProvider = new ethers.JsonRpcProvider('https://testnet.hashio.io/api');
+  const hederaProvider = new ethers.JsonRpcProvider('https://296.rpc.thirdweb.com');
   const latestBlock = await hederaProvider.getBlock('latest');
   const hederaTimestamp = latestBlock.timestamp - 5; // 5s buffer
-  
+
   for (const pair of Object.keys(CHAINLINK_FEEDS)) {
     try {
       // Fetch price from Chainlink
       const { price, timestamp: chainlinkTimestamp, roundId } = await fetchChainlinkPrice(pair);
-      
+
       console.log(`\n📊 ${pair}:`);
       console.log(`   Price: ${price} (${Number(price) / 1e8})`);
       console.log(`   Round: ${roundId}`);
       console.log(`   Chainlink Updated: ${new Date(Number(chainlinkTimestamp) * 1000).toISOString()}`);
-      
+
       // Calculate deviation
       const deviation = calculateDeviation(pair, price);
       if (deviation > 0) {
         console.log(`   Deviation: ${(deviation * 100).toFixed(4)}%`);
       }
-      
+
       // Check if emergency update needed
       if (deviation > EMERGENCY_DEVIATION_THRESHOLD) {
         console.log(`   ⚠️  EMERGENCY UPDATE: ${(deviation * 100).toFixed(4)}% deviation`);
       }
-      
+
       // Convert price BEFORE signing (CRITICAL FIX)
       const adjustedPrice = convertPriceFormat(pair, price);
-      
+
       // Use fresh Hedera timestamp (not Chainlink timestamp)
       // This ensures the timestamp passes the contract's freshness check
       const timestamp = hederaTimestamp;
-      
+
       // Sign with ADJUSTED price and Hedera timestamp
       const signature = await signPrice(pair, adjustedPrice, timestamp);
-      
+
       // Push to Hedera
       if (process.env.ORACLE_MANAGER_ADDRESS) {
         await pushToHedera(pair, price, timestamp, signature);
@@ -289,19 +289,19 @@ async function updatePrices() {
         console.log(`   ⏸️  Skipping Hedera push (ORACLE_MANAGER_ADDRESS not set)`);
         console.log(`   Signature: ${signature.slice(0, 20)}...`);
       }
-      
+
       // Send heartbeat with Hedera timestamp
       await sendHeartbeat(pair, timestamp);
-      
+
       // Update last price
       lastPrices[pair] = price;
-      
+
     } catch (error) {
       console.error(`❌ Error updating ${pair}:`, error.message);
       // Continue with other pairs
     }
   }
-  
+
   console.log('\n✅ Price update cycle complete\n');
 }
 
@@ -311,30 +311,30 @@ async function updatePrices() {
 
 async function start() {
   console.log('🚀 FxSwap Oracle Bridge Starting...\n');
-  
+
   // Validate environment
   if (!process.env.ETH_RPC_URL) {
     console.warn('⚠️  ETH_RPC_URL not set, using default (may be rate limited)');
   }
-  
+
   if (!process.env.ORACLE_PRIVATE_KEY) {
     console.error('❌ ORACLE_PRIVATE_KEY not set!');
     process.exit(1);
   }
-  
+
   if (!process.env.HEDERA_ACCOUNT_ID || !process.env.HEDERA_PRIVATE_KEY) {
     console.error('❌ Hedera credentials not set!');
     process.exit(1);
   }
-  
+
   if (!process.env.ORACLE_MANAGER_ADDRESS) {
     console.warn('⚠️  ORACLE_MANAGER_ADDRESS not set - will only fetch and sign prices');
   }
-  
+
   console.log('✅ Configuration validated\n');
   console.log(`📡 Monitoring ${Object.keys(CHAINLINK_FEEDS).length} price feeds`);
   console.log(`⏱️  Update interval: ${UPDATE_INTERVALS.default / 1000}s\n`);
-  
+
   // Wrapper function with error handling for each update cycle
   const safeUpdatePrices = async () => {
     try {
@@ -345,10 +345,10 @@ async function start() {
       // Don't crash - just log and continue to next cycle
     }
   };
-  
+
   // Run immediately
   await safeUpdatePrices();
-  
+
   // Schedule regular updates with error handling
   setInterval(safeUpdatePrices, UPDATE_INTERVALS.default);
 }
