@@ -345,16 +345,16 @@ node oracle-bridge.js
 
 We get ahead because we're:
 
-✅ **Permissionless** — anyone can participate
-✅ **On-chain** — fully transparent and verifiable
-✅ **Restaked insurance** — community-backed security
-✅ **Instant risk attestation** — real-time risk scoring via HCS
-✅ **Hedera-native** — $0.001 transactions, 3-5 second finality
-✅ **Multi-currency** — 12+ global currencies, not just USD
-✅ **Synthetic assets** — access to stocks, commodities, crypto
-✅ **Auto-rebalancing** — stableswap algorithms automate liquidity management
-✅ **Delta-neutral hedging** — 90% protection from volatility
-✅ **Collateral yield** — 13% APY (industry-first)
+- ✅ **Permissionless** — anyone can participate
+- ✅ **On-chain** — fully transparent and verifiable
+- ✅ **Restaked insurance** — community-backed security
+- ✅ **Instant risk attestation** — real-time risk scoring via HCS
+- ✅ **Hedera-native** — $0.001 transactions, 3-5 second finality
+- ✅ **Multi-currency** — 12+ global currencies, not just USD
+- ✅ **Synthetic assets** — access to stocks, commodities, crypto
+- ✅ **Auto-rebalancing** — stableswap algorithms automate liquidity management
+- ✅ **Delta-neutral hedging** — 90% protection from volatility
+- ✅ **Collateral yield** — 13% APY (industry-first)
 
 ---
 
@@ -548,12 +548,12 @@ PrismFinance/
 
 ### Key Technologies
 
-**Hedera SDK**: Native blockchain integration for HTS, HCS, and account management
-**Ethers.js**: EVM smart contract interactions and wallet integration
-**React Query**: Efficient data fetching and caching
-**Emotion**: CSS-in-JS styling
-**Pyth Network and ChainLink**: Real-time price feeds
-**SaucerSwap**: DEX aggregation
+- **Hedera SDK**: Native blockchain integration for HTS, HCS, and account management
+- **Ethers.js**: EVM smart contract interactions and wallet integration
+- **React Query**: Efficient data fetching and caching
+- **Emotion**: CSS-in-JS styling
+- **Pyth Network and ChainLink**: Real-time price feeds
+- **SaucerSwap**: DEX aggregation
 
 ---
 
@@ -573,7 +573,7 @@ PrismFinance/
 
 ---
 
-## � Fu-ture Roadmap
+## � Future Roadmap
 
 ### Phase 1: Core Launch (Q1 2026)
 - ✅ Vault with 13% APY yield
